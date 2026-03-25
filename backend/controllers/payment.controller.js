@@ -15,7 +15,11 @@ export const processPayment = async (req, res) => {
     };
     db.data.payments.push(newPayment);
     await db.write();
-    res.status(201).json(newPayment);
+    res.status(201).json({
+      success: true,
+      transactionId: newPayment.id,
+      payment: newPayment
+    });
   } catch (error) {
     res.status(500).json({ error: 'Payment processing failed' });
   }

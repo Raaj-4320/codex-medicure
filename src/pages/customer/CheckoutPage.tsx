@@ -275,7 +275,7 @@ export default function CheckoutPage() {
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Order Placed!</h2>
               <p className="text-slate-500 mb-8">Your order <span className="font-bold text-slate-900">#{orderId}</span> has been successfully placed and is being processed.</p>
               <button 
-                onClick={() => navigate('/dashboard/orders')}
+                onClick={() => navigate('/orders')}
                 className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all"
               >
                 Track My Order

@@ -10,6 +10,7 @@ import orderRoutes from './routes/order.routes.js';
 import inventoryRoutes from './routes/inventory.routes.js';
 import deliveryRoutes from './routes/delivery.routes.js';
 import pharmacyRoutes from './routes/pharmacy.routes.js';
+import medicineRoutes from './routes/medicine.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import miscRoutes from './routes/misc.routes.js';
@@ -38,7 +39,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/delivery-assignments', deliveryRoutes);
 app.use('/api/pharmacies', pharmacyRoutes);
-app.use('/api/medicines', pharmacyRoutes); // Medicines are under pharmacy routes in the original
+app.use('/api/medicines', medicineRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api', miscRoutes); // health and locations

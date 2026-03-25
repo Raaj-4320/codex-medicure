@@ -11,9 +11,9 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, profile } = useAuth();
 
-  const performLogin = async (userEmail: string) => {
+  const performLogin = async (userEmail: string, userPassword: string) => {
     try {
-      await login(userEmail);
+      await login(userEmail, userPassword);
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -26,7 +26,7 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
 
-    const success = await performLogin(email);
+    const success = await performLogin(email, password);
     if (success) {
       // Navigation is handled in useEffect or after login
     } else {
@@ -41,7 +41,7 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
     
-    const success = await performLogin(demoEmail);
+    const success = await performLogin(demoEmail, '123456');
     if (!success) {
       setError('Demo login failed.');
     }

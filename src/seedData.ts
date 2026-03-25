@@ -8,6 +8,7 @@ import {
   query, 
   where 
 } from 'firebase/firestore';
+import { cleanFirestoreData } from './utils/cleanFirestoreData';
 
 // Helper to generate random dates
 const randomDate = (start: Date, end: Date) => {
@@ -40,7 +41,7 @@ export const seedDatabase = async () => {
   const batch = writeBatch(db);
   masterMedicines.forEach(med => {
     const ref = doc(db, 'medicinesMaster', med.id);
-    batch.set(ref, med);
+    batch.set(ref, cleanFirestoreData(med));
   });
   await batch.commit();
   console.log('Seeded Medicine Master');
@@ -91,7 +92,7 @@ export const seedDatabase = async () => {
   const pharmBatch = writeBatch(db);
   pharmacies.forEach(p => {
     const ref = doc(db, 'pharmacies', p.id);
-    pharmBatch.set(ref, p);
+    pharmBatch.set(ref, cleanFirestoreData(p));
   });
   await pharmBatch.commit();
   console.log('Seeded Pharmacies');
@@ -105,7 +106,7 @@ export const seedDatabase = async () => {
     for (let mIdx = 0; mIdx < 16; mIdx++) {
       const masterMed = masterMedicines[(pIdx * 5 + mIdx) % masterMedicines.length];
       const smId = `sm-${p.id}-${masterMed.id}`;
-      sellerMedBatch.set(doc(db, 'sellerMedicines', smId), {
+      sellerMedBatch.set(doc(db, 'sellerMedicines', smId), cleanFirestoreData({
         id: smId,
         pharmacyId: p.id,
         medicineMasterId: masterMed.id,
@@ -114,7 +115,7 @@ export const seedDatabase = async () => {
         stock: 100 + (mIdx * 5),
         isVisible: true,
         isFeatured: mIdx < 3
-      });
+      }));
     }
     await sellerMedBatch.commit();
   }
@@ -123,14 +124,14 @@ export const seedDatabase = async () => {
   // 4. Seed Service Areas
   const serviceAreaBatch = writeBatch(db);
   pharmacies.forEach(p => {
-    serviceAreaBatch.set(doc(db, 'serviceAreas', `sa-${p.id}`), {
+    serviceAreaBatch.set(doc(db, 'serviceAreas', `sa-${p.id}`), cleanFirestoreData({
       id: `sa-${p.id}`,
       pharmacyId: p.id,
       city: p.address.city,
       area: p.address.area,
       pincode: p.address.pincode,
       deliveryTime: '30-60 mins'
-    });
+    }));
   });
   await serviceAreaBatch.commit();
   console.log('Seeded Service Areas');
@@ -164,7 +165,7 @@ export const seedDatabase = async () => {
 
   const userBatch = writeBatch(db);
   demoUsers.forEach(u => {
-    userBatch.set(doc(db, 'users', u.uid), {
+    userBatch.set(doc(db, 'users', u.uid), cleanFirestoreData({
       ...u,
       addresses: [
         {
@@ -180,7 +181,7 @@ export const seedDatabase = async () => {
         }
       ],
       createdAt: new Date().toISOString()
-    });
+    }));
   });
   await userBatch.commit();
   console.log('Seeded Demo Users');
@@ -231,7 +232,7 @@ export const seedDatabase = async () => {
 
   const orderBatch = writeBatch(db);
   orders.forEach(o => {
-    orderBatch.set(doc(db, 'orders', o.id), o);
+    orderBatch.set(doc(db, 'orders', o.id), cleanFirestoreData(o));
   });
   await orderBatch.commit();
   console.log('Seeded Orders');

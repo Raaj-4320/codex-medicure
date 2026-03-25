@@ -4,6 +4,7 @@ import { getInventory, updateInventory } from '../controllers/inventory.controll
 const router = express.Router();
 
 router.get('/', getInventory);
+router.patch('/:id', updateInventory);
 router.put('/:id', updateInventory);
 
 export default router;
