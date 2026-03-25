@@ -1,0 +1,130 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Package, 
+  Clock, 
+  ChevronRight, 
+  CheckCircle2, 
+  Truck, 
+  AlertCircle,
+  Loader2,
+  RefreshCw
+} from 'lucide-react';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
+import { motion } from 'motion/react';
+
+export default function OrderHistory() {
+  const { profile } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    try {
+      const data = await api.getOrders({ customerId: profile?.uid });
+      setOrders(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
+  }, [profile]);
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending': return <Clock className="w-5 h-5 text-amber-500" />;
+      case 'confirmed': return <CheckCircle2 className="w-5 h-5 text-blue-500" />;
+      case 'packed': return <Package className="w-5 h-5 text-purple-500" />;
+      case 'ready': return <Package className="w-5 h-5 text-emerald-500" />;
+      case 'on_the_way': return <Truck className="w-5 h-5 text-emerald-600 animate-bounce" />;
+      case 'delivered': return <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
+      case 'cancelled': return <AlertCircle className="w-5 h-5 text-red-500" />;
+      default: return <Clock className="w-5 h-5 text-slate-400" />;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    return status.replace(/_/g, ' ').toUpperCase();
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">My Orders</h1>
+          <p className="text-slate-500">Track and manage your medicine orders</p>
+        </div>
+        <button 
+          onClick={() => { setLoading(true); fetchOrders(); }}
+          className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+        >
+          <RefreshCw className={`w-5 h-5 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {loading && orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" />
+          <p className="text-slate-500">Loading your orders...</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-slate-200">
+          <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-slate-900 mb-1">No orders found</h3>
+          <p className="text-slate-500">You haven't placed any orders yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {orders.map((order) => (
+            <motion.div 
+              key={order.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-md transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-slate-50 rounded-xl">
+                    {getStatusIcon(order.status)}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">Order #{order.id}</h3>
+                    <p className="text-xs text-slate-500">{new Date(order.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-bold text-emerald-600">₹{order.totalAmount.toFixed(2)}</div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{getStatusText(order.status)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                <div className="flex -space-x-2">
+                  {order.items.slice(0, 3).map((item: any, idx: number) => (
+                    <div key={idx} className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-600">
+                      {item.medicineId.slice(0, 2).toUpperCase()}
+                    </div>
+                  ))}
+                  {order.items.length > 3 && (
+                    <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-600">
+                      +{order.items.length - 3}
+                    </div>
+                  )}
+                </div>
+                <button className="text-emerald-600 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all">
+                  View Details
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

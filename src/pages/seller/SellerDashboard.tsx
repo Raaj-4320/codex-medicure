@@ -1,0 +1,339 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  LayoutDashboard, 
+  Package, 
+  ClipboardList, 
+  TrendingUp, 
+  AlertTriangle, 
+  Clock,
+  CheckCircle,
+  ArrowUpRight,
+  Loader2,
+  Plus,
+  RefreshCw,
+  FileText,
+  ShieldCheck,
+  Bell,
+  ChevronRight,
+  Activity,
+  Calendar,
+  DollarSign
+} from 'lucide-react';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
+} from 'recharts';
+import { useAuth } from '../../AuthContext';
+import { Order, Prescription, Notification } from '../../types';
+import { api } from '../../services/api';
+import { 
+  MOCK_ORDERS, 
+  MOCK_PRESCRIPTIONS, 
+  MOCK_NOTIFICATIONS,
+  MOCK_MEDICINE_CATALOG 
+} from '../../staticData';
+import { motion } from 'motion/react';
+import { Link } from 'react-router-dom';
+
+const SellerDashboard: React.FC = () => {
+  const { profile } = useAuth();
+  const [stats, setStats] = useState({
+    todayOrders: 0,
+    pendingPrescriptions: 0,
+    lowStock: 0,
+    outForDelivery: 0,
+    monthlyRevenue: 0,
+    settlementDue: 0
+  });
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [pendingPrescriptions, setPendingPrescriptions] = useState<Prescription[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!profile) return;
+      
+      try {
+        setLoading(true);
+        const orders = await api.getOrders();
+        // Filter for this seller's pharmacy (assuming pharmacy-1 for demo)
+        const sellerOrders = orders.filter((o: any) => o.pharmacyId === 'pharmacy-1');
+        
+        const prescriptions = MOCK_PRESCRIPTIONS as Prescription[];
+        const sellerNotifications = MOCK_NOTIFICATIONS as Notification[];
+        
+        const totalRevenue = sellerOrders.reduce((acc: number, o: any) => acc + o.totalAmount, 0);
+        
+        setStats({
+          todayOrders: sellerOrders.filter((o: any) => o.createdAt.startsWith(new Date().toISOString().split('T')[0])).length,
+          pendingPrescriptions: prescriptions.filter(p => p.status === 'under_review').length,
+          lowStock: 8,
+          outForDelivery: 3,
+          monthlyRevenue: totalRevenue,
+          settlementDue: Math.round(totalRevenue * 0.15)
+        });
+
+        setRecentOrders(sellerOrders.slice(0, 5));
+        setPendingPrescriptions(prescriptions.filter(p => p.status === 'under_review'));
+        setNotifications(sellerNotifications);
+      } catch (error) {
+        console.error('Failed to fetch seller data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [profile]);
+
+  const chartData = [
+    { name: 'Mon', sales: 12000 },
+    { name: 'Tue', sales: 18000 },
+    { name: 'Wed', sales: 15000 },
+    { name: 'Thu', sales: 22000 },
+    { name: 'Fri', sales: 28000 },
+    { name: 'Sat', sales: 32000 },
+    { name: 'Sun', sales: 25000 },
+  ];
+
+  const bestSellers = [
+    { name: 'Dolo 650', sales: 450, color: '#10b981' },
+    { name: 'Pan 40', sales: 320, color: '#3b82f6' },
+    { name: 'Telma 40', sales: 280, color: '#f59e0b' },
+    { name: 'Augmentin', sales: 210, color: '#ef4444' },
+  ];
+
+  if (loading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>;
+
+  return (
+    <div className="space-y-8 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Store Dashboard</h1>
+          <p className="text-slate-500 text-sm">Welcome back, {profile?.displayName || 'Seller'}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+            <RefreshCw className="w-4 h-4" />
+            Sync Inventory
+          </button>
+          <Link to="/seller/catalog" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 rounded-xl text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200">
+            <Plus className="w-4 h-4" />
+            Add Medicine
+          </Link>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {[
+          { label: "Today's Orders", value: stats.todayOrders, icon: ClipboardList, color: 'blue' },
+          { label: "Pending Rx", value: stats.pendingPrescriptions, icon: FileText, color: 'amber' },
+          { label: "Low Stock", value: stats.lowStock, icon: AlertTriangle, color: 'red' },
+          { label: "Out for Delivery", value: stats.outForDelivery, icon: Package, color: 'indigo' },
+          { label: "Monthly Revenue", value: `₹${(stats.monthlyRevenue / 1000).toFixed(1)}k`, icon: TrendingUp, color: 'emerald' },
+          { label: "Settlement Due", value: `₹${(stats.settlementDue / 1000).toFixed(1)}k`, icon: DollarSign, color: 'slate' },
+        ].map((kpi, i) => (
+          <motion.div 
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"
+          >
+            <div className={`p-2 bg-${kpi.color}-50 text-${kpi.color}-600 rounded-lg w-fit mb-3`}>
+              <kpi.icon className="w-5 h-5" />
+            </div>
+            <p className="text-slate-500 text-xs font-medium mb-1">{kpi.label}</p>
+            <h3 className="text-xl font-bold text-slate-900">{kpi.value}</h3>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content Area */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* Revenue Trend */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-600" />
+                Revenue Trend
+              </h3>
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button className="px-3 py-1 text-xs font-bold bg-white rounded-md shadow-sm">Weekly</button>
+                <button className="px-3 py-1 text-xs font-bold text-slate-500">Monthly</button>
+              </div>
+            </div>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  />
+                  <Area type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Recent Orders */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900">Recent Orders</h3>
+              <Link to="/seller/orders" className="text-emerald-600 text-sm font-semibold hover:underline">View All</Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold">Order ID</th>
+                    <th className="px-6 py-4 font-semibold">Customer</th>
+                    <th className="px-6 py-4 font-semibold">Amount</th>
+                    <th className="px-6 py-4 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">#{order.id.slice(-6)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{order.customerId}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">₹{order.totalAmount}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                          order.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                        }`}>
+                          {order.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar Widgets */}
+        <div className="space-y-8">
+          {/* Quick Actions */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 className="font-bold text-slate-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Add Med', icon: Plus, link: '/seller/catalog', color: 'emerald' },
+                { label: 'Update Stock', icon: RefreshCw, link: '/seller/inventory', color: 'blue' },
+                { label: 'View Payouts', icon: DollarSign, link: '/seller/payouts', color: 'amber' },
+                { label: 'Compliance', icon: ShieldCheck, link: '/seller/compliance', color: 'purple' },
+              ].map((action, i) => (
+                <Link 
+                  key={i}
+                  to={action.link}
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-100 hover:border-emerald-100 hover:bg-emerald-50/30 transition-all group"
+                >
+                  <div className={`p-2 bg-${action.color}-50 text-${action.color}-600 rounded-lg mb-2 group-hover:scale-110 transition-transform`}>
+                    <action.icon className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600">{action.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Prescription Review Queue */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-900">Rx Review Queue</h3>
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full">
+                {pendingPrescriptions.length} Pending
+              </span>
+            </div>
+            <div className="space-y-3">
+              {pendingPrescriptions.slice(0, 3).map((rx) => (
+                <div key={rx.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
+                      <img src={rx.imageUrl} alt="Rx" className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">Rx #{rx.id.slice(-6)}</p>
+                      <p className="text-[10px] text-slate-500">{new Date(rx.createdAt).toLocaleTimeString()}</p>
+                    </div>
+                  </div>
+                  <Link to="/seller/prescriptions" className="p-1.5 hover:bg-white rounded-lg transition-colors">
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </Link>
+                </div>
+              ))}
+              <Link to="/seller/prescriptions" className="block text-center text-xs font-bold text-emerald-600 hover:underline mt-2">
+                Open Review Center
+              </Link>
+            </div>
+          </div>
+
+          {/* Best Selling Medicines */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 className="font-bold text-slate-900 mb-6">Best Sellers</h3>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bestSellers} layout="vertical" margin={{ left: -20 }}>
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} width={80} />
+                  <Tooltip 
+                    cursor={{fill: 'transparent'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  />
+                  <Bar dataKey="sales" radius={[0, 4, 4, 0]} barSize={12}>
+                    {bestSellers.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Notifications/Announcements */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-emerald-600" />
+              Announcements
+            </h3>
+            <div className="space-y-4">
+              {notifications.slice(0, 3).map((notif) => (
+                <div key={notif.id} className="flex gap-3">
+                  <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${notif.isRead ? 'bg-slate-200' : 'bg-emerald-500'}`} />
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 leading-tight">{notif.title}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{notif.message}</p>
+                    <p className="text-[9px] text-slate-400 mt-1">{new Date(notif.createdAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SellerDashboard;

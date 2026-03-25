@@ -1,0 +1,164 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './AuthContext';
+import { LocationProvider } from './LocationContext';
+
+// Layouts
+import MainLayout from './components/layout/MainLayout';
+
+// Pages
+import LandingPage from './pages/public/LandingPage';
+import LoginPage from './pages/auth/LoginPage';
+import RegisterPage from './pages/auth/RegisterPage';
+
+// Customer Pages
+import CustomerDashboard from './pages/customer/CustomerDashboard';
+import PharmacyDiscovery from './pages/customer/PharmacyDiscovery';
+import PharmacyDetail from './pages/customer/PharmacyDetail';
+import CartPage from './pages/customer/CartPage';
+import CheckoutPage from './pages/customer/CheckoutPage';
+import OrderHistory from './pages/customer/OrderHistory';
+
+// Seller Pages
+import SellerDashboard from './pages/seller/SellerDashboard';
+import InventoryManagement from './pages/seller/InventoryManagement';
+import SellerOrders from './pages/seller/SellerOrders';
+import PharmacyProfile from './pages/seller/PharmacyProfile';
+import PrescriptionManagement from './pages/seller/PrescriptionManagement';
+import SellerCatalog from './pages/seller/SellerCatalog';
+import ReturnsReplacements from './pages/seller/ReturnsReplacements';
+import SellerPayouts from './pages/seller/SellerPayouts';
+import SellerAnalytics from './pages/seller/SellerAnalytics';
+import Compliance from './pages/seller/Compliance';
+import Support from './pages/seller/Support';
+import SellerNotifications from './pages/seller/SellerNotifications';
+
+// Admin Pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import SellerVerification from './pages/admin/SellerVerification';
+import MedicineMasterCatalog from './pages/admin/MedicineMasterCatalog';
+import SupplyChainAnalytics from './pages/admin/SupplyChainAnalytics';
+import LogisticsManagement from './pages/admin/LogisticsManagement';
+import ManufacturerManagement from './pages/admin/ManufacturerManagement';
+import ComplianceRisk from './pages/admin/ComplianceRisk';
+import SafetyControl from './pages/admin/SafetyControl';
+import Financials from './pages/admin/Financials';
+import AdvancedLogistics from './pages/admin/AdvancedLogistics';
+import PrescriptionVerification from './pages/admin/PrescriptionVerification';
+
+// Delivery Pages
+import DeliveryLayout from './components/layout/DeliveryLayout';
+import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
+import AvailableOrders from './pages/delivery/AvailableOrders';
+import MyDeliveries from './pages/delivery/MyDeliveries';
+import Earnings from './pages/delivery/Earnings';
+import Wallet from './pages/delivery/Wallet';
+import DeliveryNotifications from './pages/delivery/DeliveryNotifications';
+import DeliveryProfile from './pages/delivery/DeliveryProfile';
+import DeliverySupport from './pages/delivery/DeliverySupport';
+
+const ProtectedRoute: React.FC<{ 
+  children: React.ReactNode; 
+  allowedRoles?: string[] 
+}> = ({ children, allowedRoles }) => {
+  const { user, profile, loading } = useAuth();
+
+  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  if (!user) return <Navigate to="/login" />;
+  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+    return <Navigate to="/" />;
+  }
+
+  return <>{children}</>;
+};
+
+const AppRoutes = () => {
+  const { profile } = useAuth();
+
+  const getDashboardRedirect = () => {
+    if (!profile) return <LandingPage />;
+    switch (profile.role) {
+      case 'admin': return <Navigate to="/admin" />;
+      case 'seller': return <Navigate to="/seller" />;
+      case 'customer': return <Navigate to="/dashboard" />;
+      case 'delivery': return <Navigate to="/delivery" />;
+      case 'pharmacist': return <Navigate to="/pharmacist" />;
+      default: return <LandingPage />;
+    }
+  };
+
+  return (
+    <Routes>
+      <Route path="/" element={getDashboardRedirect()} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      {/* Customer Routes */}
+      <Route path="/" element={<ProtectedRoute allowedRoles={['customer']}><MainLayout /></ProtectedRoute>}>
+        <Route path="dashboard" element={<CustomerDashboard />} />
+        <Route path="discover" element={<PharmacyDiscovery />} />
+        <Route path="pharmacy/:id" element={<PharmacyDetail />} />
+        <Route path="cart" element={<CartPage />} />
+        <Route path="checkout" element={<CheckoutPage />} />
+        <Route path="orders" element={<OrderHistory />} />
+      </Route>
+
+      {/* Seller Routes */}
+      <Route path="/seller" element={<ProtectedRoute allowedRoles={['seller']}><MainLayout /></ProtectedRoute>}>
+        <Route index element={<SellerDashboard />} />
+        <Route path="inventory" element={<InventoryManagement />} />
+        <Route path="orders" element={<SellerOrders />} />
+        <Route path="profile" element={<PharmacyProfile />} />
+        <Route path="prescriptions" element={<PrescriptionManagement />} />
+        <Route path="catalog" element={<SellerCatalog />} />
+        <Route path="returns" element={<ReturnsReplacements />} />
+        <Route path="payouts" element={<SellerPayouts />} />
+        <Route path="analytics" element={<SellerAnalytics />} />
+        <Route path="compliance" element={<Compliance />} />
+        <Route path="support" element={<Support />} />
+        <Route path="notifications" element={<SellerNotifications />} />
+      </Route>
+
+      {/* Admin Routes */}
+      <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><MainLayout /></ProtectedRoute>}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="verifications" element={<SellerVerification />} />
+        <Route path="catalog" element={<MedicineMasterCatalog />} />
+        <Route path="analytics" element={<SupplyChainAnalytics />} />
+        <Route path="logistics" element={<LogisticsManagement />} />
+        <Route path="manufacturers" element={<ManufacturerManagement />} />
+        <Route path="compliance" element={<ComplianceRisk />} />
+        <Route path="safety" element={<SafetyControl />} />
+        <Route path="financials" element={<Financials />} />
+        <Route path="advanced-logistics" element={<AdvancedLogistics />} />
+        <Route path="prescriptions" element={<PrescriptionVerification />} />
+      </Route>
+
+      {/* Delivery Routes */}
+      <Route path="/delivery" element={<ProtectedRoute allowedRoles={['delivery']}><DeliveryLayout /></ProtectedRoute>}>
+        <Route index element={<DeliveryDashboard />} />
+        <Route path="available" element={<AvailableOrders />} />
+        <Route path="my-deliveries" element={<MyDeliveries />} />
+        <Route path="earnings" element={<Earnings />} />
+        <Route path="wallet" element={<Wallet />} />
+        <Route path="notifications" element={<DeliveryNotifications />} />
+        <Route path="profile" element={<DeliveryProfile />} />
+        <Route path="support" element={<DeliverySupport />} />
+      </Route>
+    </Routes>
+  );
+};
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <LocationProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </LocationProvider>
+    </AuthProvider>
+  );
+}

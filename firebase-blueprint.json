@@ -1,0 +1,235 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "seller", "customer", "delivery", "pharmacist"] },
+        "phoneNumber": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "country": { "type": "string" },
+              "state": { "type": "string" },
+              "city": { "type": "string" },
+              "area": { "type": "string" },
+              "locality": { "type": "string" },
+              "pincode": { "type": "string" },
+              "landmark": { "type": "string" },
+              "isDefault": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Pharmacy": {
+      "title": "Pharmacy",
+      "description": "Pharmacy store details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "address": { "type": "object" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "operatingHours": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "deliveryAvailable": { "type": "boolean" },
+        "pickupAvailable": { "type": "boolean" },
+        "minOrderValue": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "image": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sellerId", "name", "verificationStatus"]
+    },
+    "ServiceArea": {
+      "title": "Service Area",
+      "description": "Areas served by a pharmacy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pharmacyId": { "type": "string" },
+        "city": { "type": "string" },
+        "area": { "type": "string" },
+        "pincode": { "type": "string" },
+        "deliveryTime": { "type": "string" }
+      },
+      "required": ["pharmacyId", "city", "pincode"]
+    },
+    "MedicineMaster": {
+      "title": "Medicine Master",
+      "description": "Global medicine catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "brandName": { "type": "string" },
+        "genericName": { "type": "string" },
+        "category": { "type": "string" },
+        "dosageForm": { "type": "string" },
+        "strength": { "type": "string" },
+        "rxRequired": { "type": "boolean" },
+        "description": { "type": "string" },
+        "manufacturer": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["brandName", "genericName", "category"]
+    },
+    "SellerMedicine": {
+      "title": "Seller Medicine",
+      "description": "Medicine mapped to a specific pharmacy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pharmacyId": { "type": "string" },
+        "medicineMasterId": { "type": "string" },
+        "price": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "stock": { "type": "number" },
+        "isVisible": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" }
+      },
+      "required": ["pharmacyId", "medicineMasterId", "price", "stock"]
+    },
+    "InventoryBatch": {
+      "title": "Inventory Batch",
+      "description": "Specific batch of medicine in stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sellerMedicineId": { "type": "string" },
+        "pharmacyId": { "type": "string" },
+        "batchNumber": { "type": "string" },
+        "purchaseQty": { "type": "number" },
+        "soldQty": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "expiryDate": { "type": "string", "format": "date" },
+        "mfgDate": { "type": "string", "format": "date" },
+        "buyPrice": { "type": "number" },
+        "sellPrice": { "type": "number" },
+        "supplier": { "type": "string" }
+      },
+      "required": ["sellerMedicineId", "batchNumber", "currentStock", "expiryDate"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "pharmacyId": { "type": "string" },
+        "status": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "deliveryAddress": { "type": "object" },
+        "orderType": { "type": "string", "enum": ["delivery", "pickup"] },
+        "prescriptionId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "pharmacyId", "status", "totalAmount"]
+    },
+    "OrderItem": {
+      "title": "Order Item",
+      "description": "Items within an order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "sellerMedicineId": { "type": "string" },
+        "medicineName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" }
+      },
+      "required": ["orderId", "sellerMedicineId", "quantity", "price"]
+    },
+    "Prescription": {
+      "title": "Prescription",
+      "description": "Uploaded prescription details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "under_review", "approved", "rejected", "clarification_required"] },
+        "pharmacistId": { "type": "string" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "imageUrl", "status"]
+    },
+    "DeliveryAssignment": {
+      "title": "Delivery Assignment",
+      "description": "Assignment of order to delivery staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "deliveryStaffId": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "assignedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "deliveryStaffId", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message"]
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "System activity logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/pharmacies/{pharmacyId}": { "schema": "Pharmacy", "description": "Pharmacy stores" },
+    "/serviceAreas/{areaId}": { "schema": "ServiceArea", "description": "Serviceable areas" },
+    "/medicinesMaster/{medicineId}": { "schema": "MedicineMaster", "description": "Global medicine catalog" },
+    "/sellerMedicines/{sellerMedicineId}": { "schema": "SellerMedicine", "description": "Seller inventory mapping" },
+    "/inventoryBatches/{batchId}": { "schema": "InventoryBatch", "description": "Stock batches" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Customer orders" },
+    "/orderItems/{itemId}": { "schema": "OrderItem", "description": "Order line items" },
+    "/prescriptions/{prescriptionId}": { "schema": "Prescription", "description": "Prescriptions" },
+    "/deliveryAssignments/{assignmentId}": { "schema": "DeliveryAssignment", "description": "Delivery tasks" },
+    "/notifications/{notificationId}": { "schema": "Notification", "description": "User notifications" },
+    "/auditLogs/{logId}": { "schema": "AuditLog", "description": "System logs" }
+  }
+}

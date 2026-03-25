@@ -1,0 +1,204 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, 
+  Filter, 
+  Package, 
+  Clock, 
+  CheckCircle2, 
+  XCircle, 
+  ChevronRight,
+  Loader2,
+  RefreshCw
+} from 'lucide-react';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
+
+export default function SellerOrders() {
+  const { profile } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const fetchOrders = async () => {
+    try {
+      // In a real app, we'd find the pharmacyId for this seller
+      const pharmacies = await api.getPharmacies();
+      const myPharmacy = pharmacies.find((p: any) => p.sellerId === profile?.uid);
+      
+      if (myPharmacy) {
+        const data = await api.getOrders({ pharmacyId: myPharmacy.id });
+        setOrders(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      }
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 5000); // Polling every 5 seconds
+    return () => clearInterval(interval);
+  }, [profile]);
+
+  const updateStatus = async (orderId: string, newStatus: string) => {
+    setUpdatingId(orderId);
+    try {
+      await api.updateOrder(orderId, { status: newStatus });
+      await fetchOrders();
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-amber-100 text-amber-700';
+      case 'confirmed': return 'bg-blue-100 text-blue-700';
+      case 'packed': return 'bg-purple-100 text-purple-700';
+      case 'ready': return 'bg-emerald-100 text-emerald-700';
+      case 'delivered': return 'bg-slate-100 text-slate-700';
+      case 'cancelled': return 'bg-red-100 text-red-700';
+      default: return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Order Management</h1>
+          <p className="text-slate-500">Manage and track your pharmacy orders</p>
+        </div>
+        <button 
+          onClick={() => { setLoading(true); fetchOrders(); }}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      {loading && orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" />
+          <p className="text-slate-500">Loading orders...</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-300">
+          <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-slate-900 mb-1">No orders yet</h3>
+          <p className="text-slate-500">New orders will appear here as they arrive.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {orders.map((order) => (
+            <div key={order.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+              <div className="p-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
+                      <Package className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-900">#{order.id}</h3>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-500 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {new Date(order.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    {order.status === 'pending' && (
+                      <>
+                        <button 
+                          onClick={() => updateStatus(order.id, 'cancelled')}
+                          disabled={updatingId === order.id}
+                          className="px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                        >
+                          Reject
+                        </button>
+                        <button 
+                          onClick={() => updateStatus(order.id, 'confirmed')}
+                          disabled={updatingId === order.id}
+                          className="px-6 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                        >
+                          Confirm Order
+                        </button>
+                      </>
+                    )}
+                    {order.status === 'confirmed' && (
+                      <button 
+                        onClick={() => updateStatus(order.id, 'packed')}
+                        disabled={updatingId === order.id}
+                        className="px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all"
+                      >
+                        Mark as Packed
+                      </button>
+                    )}
+                    {order.status === 'packed' && (
+                      <button 
+                        onClick={() => updateStatus(order.id, 'ready')}
+                        disabled={updatingId === order.id}
+                        className="px-6 py-2 bg-purple-600 text-white text-sm font-bold rounded-xl hover:bg-purple-700 transition-all"
+                      >
+                        Ready for Pickup
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-100">
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Items</h4>
+                    <div className="space-y-2">
+                      {order.items.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="text-slate-600">Medicine ID: {item.medicineId} x {item.quantity}</span>
+                          <span className="font-bold text-slate-900">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="pt-2 flex justify-between font-bold text-slate-900">
+                        <span>Total Amount</span>
+                        <span className="text-emerald-600">₹{order.totalAmount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Customer</h4>
+                    <div className="text-sm">
+                      <p className="font-bold text-slate-900">User ID: {order.customerId}</p>
+                      <p className="text-slate-500">Payment: {order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Paid'}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Prescription</h4>
+                    {order.prescriptionUrl ? (
+                      <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Verified Prescription
+                      </div>
+                    ) : (
+                      <div className="text-slate-400 text-sm italic">Not Required</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
