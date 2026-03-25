@@ -58,20 +58,29 @@ import DeliveryNotifications from './pages/delivery/DeliveryNotifications';
 import DeliveryProfile from './pages/delivery/DeliveryProfile';
 import DeliverySupport from './pages/delivery/DeliverySupport';
 
-const ProtectedRoute: React.FC<{ 
-  children: React.ReactNode; 
-  allowedRoles?: string[] 
-}> = ({ children, allowedRoles }) => {
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  allowedRoles?: string[];
+  redirectTo?: string;
+}> = ({ children, allowedRoles, redirectTo }) => {
   const { user, profile, loading } = useAuth();
 
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  if (!user) return <Navigate to="/login" />;
+  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+
+  // ❌ Not logged in → redirect based on route
+  if (!user) {
+    return <Navigate to={redirectTo || "/login"} />;
+  }
+
+  // ❌ Role mismatch
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
     return <Navigate to="/" />;
   }
 
   return <>{children}</>;
 };
+
+
 
 const AppRoutes = () => {
   const { profile } = useAuth();
@@ -91,8 +100,13 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={getDashboardRedirect()} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/login" element={<LoginPage role="customer" />} />
+      <Route path="/register" element={<RegisterPage role="customer" />} />
+
+      <Route path="/seller/login" element={<LoginPage role="seller" />} />
+      <Route path="/seller/register" element={<RegisterPage role="seller" />} />
+
+      <Route path="/admin/login" element={<LoginPage role="admin" />} />
 
       {/* Customer Routes */}
       <Route path="/" element={<ProtectedRoute allowedRoles={['customer']}><MainLayout /></ProtectedRoute>}>
@@ -105,7 +119,14 @@ const AppRoutes = () => {
       </Route>
 
       {/* Seller Routes */}
-      <Route path="/seller" element={<ProtectedRoute allowedRoles={['seller']}><MainLayout /></ProtectedRoute>}>
+      <Route
+  path="/seller"
+  element={
+    <ProtectedRoute allowedRoles={['seller']} redirectTo="/seller/login">
+      <MainLayout />
+    </ProtectedRoute>
+  }
+>
         <Route index element={<SellerDashboard />} />
         <Route path="inventory" element={<InventoryManagement />} />
         <Route path="orders" element={<SellerOrders />} />
@@ -121,7 +142,14 @@ const AppRoutes = () => {
       </Route>
 
       {/* Admin Routes */}
-      <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><MainLayout /></ProtectedRoute>}>
+      <Route
+  path="/admin"
+  element={
+    <ProtectedRoute allowedRoles={['admin']} redirectTo="/admin/login">
+      <MainLayout />
+    </ProtectedRoute>
+  }
+>
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="verifications" element={<SellerVerification />} />
@@ -137,7 +165,14 @@ const AppRoutes = () => {
       </Route>
 
       {/* Delivery Routes */}
-      <Route path="/delivery" element={<ProtectedRoute allowedRoles={['delivery']}><DeliveryLayout /></ProtectedRoute>}>
+      <Route
+  path="/delivery"
+  element={
+    <ProtectedRoute allowedRoles={['delivery']} redirectTo="/delivery/login">
+      <DeliveryLayout />
+    </ProtectedRoute>
+  }
+>
         <Route index element={<DeliveryDashboard />} />
         <Route path="available" element={<AvailableOrders />} />
         <Route path="my-deliveries" element={<MyDeliveries />} />
