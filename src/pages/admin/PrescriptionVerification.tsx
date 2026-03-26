@@ -21,22 +21,34 @@ import {
   ChevronRight,
   Activity
 } from 'lucide-react';
-import { MOCK_PRESCRIPTIONS } from '../../staticData';
 import { motion, AnimatePresence } from 'motion/react';
+import { api } from '../../services/api';
 
 const PrescriptionVerification: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'pending' | 'verified' | 'doctors'>('pending');
   const [loading, setLoading] = useState(true);
-  const [prescriptions, setPrescriptions] = useState(MOCK_PRESCRIPTIONS);
-  const [selectedPrescription, setSelectedPrescription] = useState<typeof MOCK_PRESCRIPTIONS[0] | null>(null);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [selectedPrescription, setSelectedPrescription] = useState<any | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(timer);
+    const load = async () => {
+      try {
+        setLoading(true);
+        const data = await api.getPrescriptions();
+        setPrescriptions(data);
+      } catch (error) {
+        console.error('Failed to load prescriptions', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  const handleVerify = (id: string, status: 'verified' | 'rejected') => {
-    setPrescriptions(prescriptions.map(p => p.id === id ? { ...p, status, reviewedAt: new Date().toISOString() } : p));
+  const handleVerify = async (id: string, status: 'approved' | 'rejected') => {
+    await api.updatePrescription(id, { status });
+    const data = await api.getPrescriptions();
+    setPrescriptions(data);
     setSelectedPrescription(null);
   };
 
@@ -111,7 +123,7 @@ const PrescriptionVerification: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-900">Customer: {p.customerId}</p>
-                          <p className="text-[10px] text-slate-500">Uploaded: {new Date(p.uploadedAt).toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-500">Uploaded: {new Date(p.createdAt).toLocaleString()}</p>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-300" />
@@ -173,7 +185,7 @@ const PrescriptionVerification: React.FC = () => {
                         Reject Prescription
                       </button>
                       <button 
-                        onClick={() => handleVerify(selectedPrescription.id, 'verified')}
+                        onClick={() => handleVerify(selectedPrescription.id, 'approved')}
                         className="flex-[2] py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all"
                       >
                         Approve & Verify
@@ -225,11 +237,11 @@ const PrescriptionVerification: React.FC = () => {
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs text-slate-600">{p.id}</td>
                       <td className="px-6 py-4 text-sm font-medium text-slate-900">{p.customerId}</td>
-                      <td className="px-6 py-4 text-xs text-slate-600">{new Date(p.uploadedAt).toLocaleString()}</td>
+                      <td className="px-6 py-4 text-xs text-slate-600">{new Date(p.createdAt).toLocaleString()}</td>
                       <td className="px-6 py-4 text-xs text-slate-600">{p.reviewedAt ? new Date(p.reviewedAt).toLocaleString() : '-'}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          p.status === 'verified' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                          p.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                         }`}>
                           {p.status}
                         </span>

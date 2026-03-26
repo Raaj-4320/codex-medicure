@@ -23,17 +23,29 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SupportTicket } from '../../types';
-import { MOCK_SUPPORT_TICKETS } from '../../staticData';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
 
 const Support: React.FC = () => {
+  const { profile } = useAuth();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [activeTab, setActiveTab] = useState<'tickets' | 'faq' | 'contact'>('tickets');
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const loadTickets = async () => {
+    if (!profile) return;
+    try {
+      const data = await api.getTickets({ userId: profile.uid });
+      setTickets(data as SupportTicket[]);
+    } catch (error) {
+      console.error('Failed to load tickets', error);
+    }
+  };
+
   useEffect(() => {
-    setTickets(MOCK_SUPPORT_TICKETS as SupportTicket[]);
-  }, []);
+    loadTickets();
+  }, [profile]);
 
   const faqs = [
     { q: "How do I update my bank details?", a: "You can update your bank details in the Store Profile > Bank & Payouts section. Changes require verification and take 2-3 business days." },
@@ -130,11 +142,15 @@ const Support: React.FC = () => {
                     type="text" 
                     placeholder="Search tickets..."
                     className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
               </div>
               <div className="divide-y divide-slate-50">
-                {tickets.map(ticket => (
+                {tickets
+                  .filter(ticket => ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) || (ticket.description || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(ticket => (
                   <div key={ticket.id} className="p-6 hover:bg-slate-50 transition-colors group cursor-pointer">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex items-start gap-4">
@@ -320,7 +336,7 @@ const Support: React.FC = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
-                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none">
+                    <select id="ticket-category" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none">
                       <option>Order Issues</option>
                       <option>Payment & Payouts</option>
                       <option>Inventory & Catalog</option>
@@ -332,12 +348,13 @@ const Support: React.FC = () => {
 
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Subject</label>
-                    <input type="text" placeholder="Briefly describe the issue" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
+                    <input id="ticket-subject" type="text" placeholder="Briefly describe the issue" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
                   </div>
 
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Description</label>
                     <textarea 
+                      id="ticket-description"
                       rows={4} 
                       placeholder="Provide detailed information about your problem..."
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
@@ -357,7 +374,26 @@ const Support: React.FC = () => {
                   >
                     Cancel
                   </button>
-                  <button className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!profile) return;
+                      const category = (document.getElementById('ticket-category') as HTMLSelectElement)?.value || 'Other';
+                      const subject = (document.getElementById('ticket-subject') as HTMLInputElement)?.value || '';
+                      const description = (document.getElementById('ticket-description') as HTMLTextAreaElement)?.value || '';
+                      if (!subject || !description) return;
+                      await api.createTicket({
+                        userId: profile.uid,
+                        category: category.toLowerCase().includes('payment') ? 'payout' : category.toLowerCase().includes('inventory') ? 'inventory' : category.toLowerCase().includes('technical') ? 'technical' : 'order',
+                        subject,
+                        description,
+                        message: description,
+                        priority: 'medium',
+                      });
+                      await loadTickets();
+                      setShowNewTicketModal(false);
+                    }}
+                    className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2"
+                  >
                     <Send className="w-4 h-4" />
                     Submit Ticket
                   </button>

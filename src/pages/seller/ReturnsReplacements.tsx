@@ -18,17 +18,29 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ReturnRequest } from '../../types';
-import { MOCK_SELLER_RETURNS } from '../../staticData';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
 
 const ReturnsReplacements: React.FC = () => {
+  const { profile } = useAuth();
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'refunded' | 'replaced'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReturn, setSelectedReturn] = useState<ReturnRequest | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    setReturns(MOCK_SELLER_RETURNS as ReturnRequest[]);
-  }, []);
+    const load = async () => {
+      if (!profile) return;
+      try {
+        await loadReturns();
+      } catch (error: any) {
+        setErrorMessage(error?.message || 'Failed to fetch returns');
+      }
+    };
+    load();
+  }, [profile]);
 
   const filteredReturns = returns.filter(ret => {
     const matchesFilter = filter === 'all' || ret.status === filter;
@@ -37,9 +49,31 @@ const ReturnsReplacements: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
-  const updateStatus = (id: string, status: ReturnRequest['status']) => {
-    setReturns(prev => prev.map(ret => ret.id === id ? { ...ret, status } : ret));
-    setSelectedReturn(null);
+  const loadReturns = async () => {
+    if (!profile) return;
+    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    if (!pharmacies.length) {
+      setErrorMessage('No pharmacy found for this seller account.');
+      setReturns([]);
+      return;
+    }
+    setErrorMessage('');
+    const data = await api.getReturns({ pharmacyId: pharmacies[0].id });
+    setReturns(data as ReturnRequest[]);
+  };
+
+  const updateStatus = async (id: string, status: ReturnRequest['status']) => {
+    setProcessingId(id);
+    setErrorMessage('');
+    try {
+      await api.updateReturn(id, { status });
+      await loadReturns();
+      setSelectedReturn(null);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to update return');
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   return (
@@ -56,6 +90,8 @@ const ReturnsReplacements: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {errorMessage && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium">{errorMessage}</div>}
 
       {/* Filters & Search */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
@@ -149,6 +185,7 @@ const ReturnsReplacements: React.FC = () => {
                     </button>
                     <button 
                       onClick={() => updateStatus(ret.id, 'rejected')}
+                      disabled={processingId === ret.id}
                       className="w-full py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors"
                     >
                       Reject
@@ -228,6 +265,7 @@ const ReturnsReplacements: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => updateStatus(selectedReturn.id, 'refunded')}
+                  disabled={processingId === selectedReturn.id}
                   className="px-8 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
                 >
                   Confirm & Refund

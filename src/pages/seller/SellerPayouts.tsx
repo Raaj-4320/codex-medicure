@@ -29,17 +29,30 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { SellerPayout } from '../../types';
-import { MOCK_SELLER_PAYOUTS } from '../../staticData';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
 
 const SellerPayouts: React.FC = () => {
+  const { profile } = useAuth();
   const [payouts, setPayouts] = useState<SellerPayout[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'failed'>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setPayouts(MOCK_SELLER_PAYOUTS as SellerPayout[]);
-    setLoading(false);
-  }, []);
+    const load = async () => {
+      if (!profile) return;
+      try {
+        setLoading(true);
+        const data = await api.getPayouts({ sellerId: profile.uid });
+        setPayouts(data as SellerPayout[]);
+      } catch (error) {
+        console.error('Failed to load payouts', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [profile]);
 
   const chartData = [
     { name: 'Jan', amount: 45000 },

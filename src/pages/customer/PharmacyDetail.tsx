@@ -37,7 +37,7 @@ const PharmacyDetail: React.FC = () => {
         }
 
         // 2. Fetch Seller Medicines (Inventory)
-        const inventory = await api.getInventory(id);
+        const inventory = await api.getInventory({ pharmacyId: id });
         
         // 3. Fetch Master Data for each medicine
         const enrichedMeds = await Promise.all(inventory.map(async (sm: any) => {

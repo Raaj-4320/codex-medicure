@@ -13,6 +13,12 @@ import pharmacyRoutes from './routes/pharmacy.routes.js';
 import medicineRoutes from './routes/medicine.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import prescriptionRoutes from './routes/prescription.routes.js';
+import returnRoutes from './routes/return.routes.js';
+import ticketRoutes from './routes/ticket.routes.js';
+import payoutRoutes from './routes/payout.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
+import complianceRoutes from './routes/compliance.routes.js';
 import miscRoutes from './routes/misc.routes.js';
 
 const app = express();
@@ -42,6 +48,12 @@ app.use('/api/pharmacies', pharmacyRoutes);
 app.use('/api/medicines', medicineRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/tickets', ticketRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/compliance', complianceRoutes);
 app.use('/api', miscRoutes); // health and locations
 
 app.listen(PORT, '0.0.0.0', () => {

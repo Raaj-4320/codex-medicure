@@ -17,18 +17,30 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Prescription } from '../../types';
-import { MOCK_PRESCRIPTIONS } from '../../staticData';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
 
 const PrescriptionManagement: React.FC = () => {
+  const { profile } = useAuth();
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'under_review' | 'approved' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    setPrescriptions(MOCK_PRESCRIPTIONS as Prescription[]);
-  }, []);
+    const load = async () => {
+      if (!profile) return;
+      try {
+        await loadPrescriptions();
+      } catch (error: any) {
+        setErrorMessage(error?.message || 'Failed to fetch prescriptions');
+      }
+    };
+    load();
+  }, [profile]);
 
   const filteredRx = prescriptions.filter(rx => {
     const matchesFilter = filter === 'all' || rx.status === filter;
@@ -42,9 +54,31 @@ const PrescriptionManagement: React.FC = () => {
     setIsReviewModalOpen(true);
   };
 
-  const updateStatus = (id: string, status: Prescription['status']) => {
-    setPrescriptions(prev => prev.map(rx => rx.id === id ? { ...rx, status } : rx));
-    setIsReviewModalOpen(false);
+  const loadPrescriptions = async () => {
+    if (!profile) return;
+    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    if (!pharmacies.length) {
+      setErrorMessage('No pharmacy found for this seller account.');
+      setPrescriptions([]);
+      return;
+    }
+    setErrorMessage('');
+    const data = await api.getPrescriptions({ pharmacyId: pharmacies[0].id });
+    setPrescriptions(data as Prescription[]);
+  };
+
+  const updateStatus = async (id: string, status: Prescription['status']) => {
+    setProcessingId(id);
+    setErrorMessage('');
+    try {
+      await api.updatePrescription(id, { status });
+      await loadPrescriptions();
+      setIsReviewModalOpen(false);
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to update prescription');
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   return (
@@ -59,6 +93,8 @@ const PrescriptionManagement: React.FC = () => {
           <span className="text-sm font-bold text-emerald-700">AI OCR Active</span>
         </div>
       </div>
+
+      {errorMessage && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium">{errorMessage}</div>}
 
       {/* Filters & Search */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">

@@ -54,7 +54,7 @@ const AdminDashboard: React.FC = () => {
           api.getUsers(),
           api.getPharmacies(),
           api.getMedicines(),
-          api.getOrders()
+          api.getOrders(),
         ]);
 
         setStats({
@@ -63,7 +63,7 @@ const AdminDashboard: React.FC = () => {
           totalMedicines: medicines.length,
           totalOrders: orders.length,
           pendingVerifications: pharmacies.filter((p: any) => p.verificationStatus === 'pending').length,
-          expiringSoon: 12,
+          expiringSoon: 0,
           fraudAlerts: 0,
           pendingPrescriptions: orders.filter((o: any) => o.prescriptionUrl).length
         });

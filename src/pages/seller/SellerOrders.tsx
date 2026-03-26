@@ -18,17 +18,21 @@ export default function SellerOrders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [hasPharmacy, setHasPharmacy] = useState(true);
 
   const fetchOrders = async () => {
     try {
-      // In a real app, we'd find the pharmacyId for this seller
-      const pharmacies = await api.getPharmacies();
-      const myPharmacy = pharmacies.find((p: any) => p.sellerId === profile?.uid);
-      
-      if (myPharmacy) {
-        const data = await api.getOrders({ pharmacyId: myPharmacy.id });
-        setOrders(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      const pharmacies = await api.getPharmacies({ sellerId: profile?.uid });
+      const myPharmacy = pharmacies[0];
+      if (!myPharmacy) {
+        setHasPharmacy(false);
+        setOrders([]);
+        return;
       }
+      setHasPharmacy(true);
+      const data = await api.getOrders({ pharmacyId: myPharmacy.id });
+      setOrders(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     } catch (error) {
       console.error('Failed to fetch orders:', error);
     } finally {
@@ -44,10 +48,12 @@ export default function SellerOrders() {
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     setUpdatingId(orderId);
+    setErrorMessage('');
     try {
       await api.updateOrder(orderId, { status: newStatus });
       await fetchOrders();
-    } catch (error) {
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to update order status');
       console.error('Failed to update order status:', error);
     } finally {
       setUpdatingId(null);
@@ -81,6 +87,16 @@ export default function SellerOrders() {
           Refresh
         </button>
       </div>
+      {!hasPharmacy && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-700 text-sm font-medium">
+          No pharmacy found for this seller account.
+        </div>
+      )}
+      {errorMessage && (
+        <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium">
+          {errorMessage}
+        </div>
+      )}
 
       {loading && orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">

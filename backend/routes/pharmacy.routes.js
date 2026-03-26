@@ -1,9 +1,10 @@
 import express from 'express';
-import { getPharmacies, getMedicines } from '../controllers/pharmacy.controller.js';
+import { getPharmacies, updatePharmacy } from '../controllers/pharmacy.controller.js';
 
 const router = express.Router();
 
 router.get('/', getPharmacies);
-router.get('/medicines', getMedicines);
+router.patch('/:id', updatePharmacy);
+router.put('/:id', updatePharmacy);
 
 export default router;

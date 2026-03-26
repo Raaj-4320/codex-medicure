@@ -58,6 +58,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.error(context, error);
   };
 
+  const syncBackendUser = async (profileData: {
+    uid: string;
+    email: string;
+    displayName: string;
+    role: string;
+    phoneNumber?: string;
+    photoURL?: string | null;
+  }) => {
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: profileData.uid,
+          uid: profileData.uid,
+          email: profileData.email,
+          displayName: profileData.displayName,
+          role: profileData.role,
+          phoneNumber: profileData.phoneNumber || '',
+          photoURL: profileData.photoURL || null,
+          status: 'active',
+        }),
+      });
+    } catch (error) {
+      console.warn('Backend user sync failed', error);
+    }
+  };
+
   // ✅ SAFE PROFILE SYNC (NO CRASH)
   const syncUserProfile = async (uid: string, fallbackUser?: MockUser | null) => {
     try {
@@ -78,6 +106,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt:
             data.createdAt?.toDate?.()?.toISOString?.() ||
             new Date().toISOString(),
+        });
+
+        await syncBackendUser({
+          uid,
+          email: data.email || fallbackUser?.email || '',
+          displayName: data.displayName || fallbackUser?.displayName || '',
+          role: data.role || 'customer',
+          phoneNumber: data.phoneNumber || '',
+          photoURL: data.photoURL || fallbackUser?.photoURL || null,
         });
 
         return;
@@ -106,6 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
 
       setProfile(fallbackProfile);
+      await syncBackendUser(fallbackProfile);
     } catch (error) {
       // ✅ CRITICAL FIX: do NOT crash app
       console.warn('Profile sync failed → using fallback');
@@ -233,6 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setProfile(newProfile);
+      await syncBackendUser(newProfile);
     } catch (error) {
       logFirebaseError('Registration failed', error);
       throw error;
@@ -268,6 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setUser(adminUser);
         setProfile(adminProfile);
+        await syncBackendUser(adminProfile);
 
         // 🔥 Prevent Firebase override
         localStorage.setItem('admin', 'true');

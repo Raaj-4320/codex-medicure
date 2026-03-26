@@ -19,7 +19,7 @@ import {
   MoreVertical,
   AlertCircle
 } from 'lucide-react';
-import { MOCK_FINANCIAL_RECORDS } from '../../staticData';
+import { api } from '../../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   AreaChart, 
@@ -37,15 +37,52 @@ import {
 const Financials: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'payouts' | 'reconciliation'>('overview');
   const [loading, setLoading] = useState(true);
-  const [records, setRecords] = useState(MOCK_FINANCIAL_RECORDS);
+  const [records, setRecords] = useState<any[]>([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(timer);
+    const load = async () => {
+      try {
+        setLoading(true);
+        const payouts = await api.getPayouts();
+        const normalized = payouts.map((p: any) => ({
+          id: p.id,
+          orderId: p.orderId || '-',
+          pharmacyId: p.pharmacyId,
+          totalAmount: p.amount,
+          commissionAmount: p.commission || 0,
+          sellerPayout: p.netAmount,
+          gstAmount: p.gst || 0,
+          status: p.status === 'paid' ? 'paid' : p.status === 'failed' ? 'failed' : 'pending',
+          createdAt: p.createdAt,
+        }));
+        setRecords(normalized);
+      } catch (error) {
+        console.error('Failed to load financial records', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  const handleReconcile = (id: string, status: 'reconciled' | 'failed') => {
-    setRecords(records.map(r => r.id === id ? { ...r, status } : r));
+  const handleReconcile = async (id: string, status: 'reconciled' | 'failed') => {
+    try {
+      await api.updatePayout(id, { status: status === 'reconciled' ? 'paid' : 'failed' });
+      const payouts = await api.getPayouts();
+      setRecords(payouts.map((p: any) => ({
+        id: p.id,
+        orderId: p.orderId || '-',
+        pharmacyId: p.pharmacyId,
+        totalAmount: p.amount,
+        commissionAmount: p.commission || 0,
+        sellerPayout: p.netAmount,
+        gstAmount: p.gst || 0,
+        status: p.status,
+        createdAt: p.createdAt,
+      })));
+    } catch (error) {
+      console.error('Failed to reconcile payout', error);
+    }
   };
 
   const revenueData = [

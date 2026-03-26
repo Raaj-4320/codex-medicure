@@ -20,20 +20,32 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Notification } from '../../types';
-import { MOCK_NOTIFICATIONS } from '../../staticData';
+import { api } from '../../services/api';
+import { useAuth } from '../../AuthContext';
 
 const SellerNotifications: React.FC = () => {
+  const { profile } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'order' | 'inventory' | 'compliance' | 'system'>('all');
 
+  const loadNotifications = async () => {
+    if (!profile) return;
+    try {
+      const data = await api.getNotifications({ userId: profile.uid });
+      setNotifications(data as Notification[]);
+    } catch (error) {
+      console.error('Failed to fetch notifications', error);
+    }
+  };
+
   useEffect(() => {
-    setNotifications(MOCK_NOTIFICATIONS as Notification[]);
-  }, []);
+    loadNotifications();
+  }, [profile]);
 
   const filteredNotifications = notifications.filter(n => {
-    const statusMatch = filter === 'all' || (filter === 'unread' ? !n.read : n.read);
-    const typeMatch = typeFilter === 'all' || n.type === typeFilter;
+    const statusMatch = filter === 'all' || (filter === 'unread' ? !n.isRead : n.isRead);
+    const typeMatch = typeFilter === 'all' || (n.type === typeFilter || (typeFilter === 'inventory' && n.type === 'stock'));
     return statusMatch && typeMatch;
   });
 
@@ -58,11 +70,17 @@ const SellerNotifications: React.FC = () => {
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    Promise.all(
+      notifications.filter((n) => !n.isRead).map((n) => api.updateNotification(n.id, { isRead: true }))
+    )
+      .then(() => loadNotifications())
+      .catch((error) => console.error('Failed to mark all as read', error));
   };
 
   const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    api.deleteNotification(id)
+      .then(() => setNotifications(prev => prev.filter(n => n.id !== id)))
+      .catch((error) => console.error('Failed to delete notification', error));
   };
 
   return (
@@ -129,17 +147,17 @@ const SellerNotifications: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ delay: idx * 0.03 }}
-                  className={`p-6 hover:bg-slate-50 transition-all group flex items-start gap-6 ${!notification.read ? 'bg-emerald-50/30' : ''}`}
+                  className={`p-6 hover:bg-slate-50 transition-all group flex items-start gap-6 ${!notification.isRead ? 'bg-emerald-50/30' : ''}`}
                 >
                   <div className={`p-3 rounded-2xl shrink-0 ${getBgColor(notification.type)} group-hover:scale-110 transition-transform relative`}>
                     {getIcon(notification.type)}
-                    {!notification.read && (
+                    {!notification.isRead && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
                     )}
                   </div>
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between">
-                      <h4 className={`text-sm font-bold ${!notification.read ? 'text-slate-900' : 'text-slate-600'}`}>
+                      <h4 className={`text-sm font-bold ${!notification.isRead ? 'text-slate-900' : 'text-slate-600'}`}>
                         {notification.title}
                       </h4>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -154,8 +172,14 @@ const SellerNotifications: React.FC = () => {
                         View Details
                         <ArrowRight className="w-3 h-3" />
                       </button>
-                      {!notification.read && (
-                        <button className="text-[10px] font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">
+                      {!notification.isRead && (
+                        <button
+                          onClick={async () => {
+                            await api.updateNotification(notification.id, { isRead: true });
+                            await loadNotifications();
+                          }}
+                          className="text-[10px] font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors"
+                        >
                           Mark as read
                         </button>
                       )}

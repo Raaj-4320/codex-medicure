@@ -313,12 +313,10 @@ export interface SellerPayout {
 
 export interface ComplianceDocument {
   id: string;
-  pharmacyId: string;
-  type: 'drug_license' | 'gst_certificate' | 'pharmacist_registration' | 'other';
-  title: string;
+  sellerId: string;
+  type: string;
   documentUrl: string;
-  expiryDate?: string;
-  status: 'pending' | 'verified' | 'expired' | 'rejected';
-  remarks?: string;
+  status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
+  updatedAt?: string;
 }

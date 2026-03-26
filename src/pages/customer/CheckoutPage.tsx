@@ -58,6 +58,17 @@ export default function CheckoutPage() {
       }
 
       // 2. Create Order
+      let prescriptionId: string | null = null;
+      if (prescriptionUploaded) {
+        const createdPrescription = await api.createPrescription({
+          userId: profile?.uid || 'customer-1',
+          pharmacyId: cartItems[0]?.pharmacyId || 'pharmacy-1',
+          status: 'pending',
+          imageUrl: 'https://example.com/rx.jpg',
+        });
+        prescriptionId = createdPrescription.id;
+      }
+
       const orderData = {
         customerId: profile?.uid || 'customer-1',
         pharmacyId: cartItems[0]?.pharmacyId || 'pharmacy-1',
@@ -70,6 +81,7 @@ export default function CheckoutPage() {
         addressId: selectedAddress,
         paymentMethod,
         paymentId: paymentResponse.transactionId,
+        prescriptionId,
         prescriptionUrl: prescriptionUploaded ? 'https://example.com/rx.jpg' : null
       };
 

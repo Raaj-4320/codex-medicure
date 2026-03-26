@@ -43,19 +43,11 @@ const MyDeliveries: React.FC = () => {
         const assignment = assignments[0];
         setActiveAssignment(assignment);
         
-        const order = await api.getOrders({ id: assignment.orderId } as any);
-        if (Array.isArray(order)) {
-          setActiveOrder(order[0]);
-          // Determine step based on order status
-          if (order[0].status === 'on_the_way') setActiveStep('pickup');
-          if (order[0].status === 'picked_up') setActiveStep('delivery');
-          if (order[0].status === 'delivered') setActiveStep('completed');
-        } else {
-          setActiveOrder(order);
-          if (order.status === 'on_the_way') setActiveStep('pickup');
-          if (order.status === 'picked_up') setActiveStep('delivery');
-          if (order.status === 'delivered') setActiveStep('completed');
-        }
+        const order = await api.getOrderById(assignment.orderId);
+        setActiveOrder(order);
+        if (order.status === 'on_the_way') setActiveStep('pickup');
+        if (order.status === 'picked_up') setActiveStep('delivery');
+        if (order.status === 'delivered') setActiveStep('completed');
       } else {
         setActiveAssignment(null);
         setActiveOrder(null);

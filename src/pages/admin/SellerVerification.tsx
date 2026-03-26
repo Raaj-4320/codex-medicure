@@ -21,8 +21,8 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { MOCK_PHARMACIES } from '../../staticData';
 import { motion, AnimatePresence } from 'motion/react';
+import { api } from '../../services/api';
 
 const SellerVerification: React.FC = () => {
   const [requests, setRequests] = useState<any[]>([]);
@@ -38,26 +38,34 @@ const SellerVerification: React.FC = () => {
     fetchRequests();
   }, [statusFilter]);
 
-  const fetchRequests = () => {
+  const fetchRequests = async () => {
     setLoading(true);
-    // Simulate API delay
-    setTimeout(() => {
-      const data = MOCK_PHARMACIES.filter(p => p.verificationStatus === statusFilter);
+    try {
+      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { verificationStatus: statusFilter });
       setRequests(data);
+    } catch (error) {
+      console.error('Failed to fetch pharmacy requests', error);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
-  const handleStatusUpdate = (id: string, newStatus: string, reason?: string) => {
+  const handleStatusUpdate = async (id: string, newStatus: string, reason?: string) => {
     setProcessing(true);
-    // Simulate API delay
-    setTimeout(() => {
+    try {
+      await api.updatePharmacy(id, {
+        verificationStatus: newStatus,
+        rejectionReason: reason || '',
+      });
       setRequests(requests.filter(r => r.id !== id));
       setSelectedRequest(null);
       setShowRejectModal(false);
       setRejectionReason('');
+    } catch (error) {
+      console.error('Failed to update pharmacy status', error);
+    } finally {
       setProcessing(false);
-    }, 500);
+    }
   };
 
   const filteredRequests = requests.filter(req => 

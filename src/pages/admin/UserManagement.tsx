@@ -20,7 +20,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { UserProfile } from '../../types';
-import { STATIC_USERS } from '../../staticData';
+import { api } from '../../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 
 const UserManagement: React.FC = () => {
@@ -37,38 +37,48 @@ const UserManagement: React.FC = () => {
     fetchUsers();
   }, []);
 
-  const fetchUsers = () => {
+  const fetchUsers = async () => {
     setLoading(true);
-    // Simulate API delay
-    setTimeout(() => {
-      const usersData = Object.values(STATIC_USERS);
+    try {
+      const usersData = await api.getUsers();
       setUsers(usersData);
+    } catch (error) {
+      console.error('Failed to fetch users', error);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
-  const handleToggleStatus = (userId: string, currentStatus: string) => {
+  const handleToggleStatus = async (userId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'blocked' ? 'active' : 'blocked';
-    setUsers(users.map(u => u.uid === userId ? { ...u, status: newStatus } : u));
+    try {
+      const updated = await api.updateUser(userId, { status: newStatus });
+      setUsers(users.map(u => (u.uid || (u as any).id) === userId ? { ...u, ...updated } : u));
+    } catch (error) {
+      console.error('Failed to toggle user status', error);
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
-    setUsers(users.filter(u => u.uid !== userId));
+    try {
+      await api.deleteUser(userId);
+      setUsers(users.filter(u => (u.uid || (u as any).id) !== userId));
+    } catch (error) {
+      console.error('Failed to delete user', error);
+    }
   };
 
-  const handleBulkAction = (action: 'block' | 'unblock' | 'delete') => {
+  const handleBulkAction = async (action: 'block' | 'unblock' | 'delete') => {
     if (selectedUsers.length === 0) return;
     if (!window.confirm(`Are you sure you want to ${action} ${selectedUsers.length} users?`)) return;
 
     if (action === 'delete') {
-      setUsers(users.filter(u => !selectedUsers.includes(u.uid)));
+      await Promise.all(selectedUsers.map((id) => api.deleteUser(id)));
+      setUsers(users.filter(u => !selectedUsers.includes(u.uid || (u as any).id)));
     } else {
-      setUsers(users.map(u => 
-        selectedUsers.includes(u.uid) 
-          ? { ...u, status: action === 'block' ? 'blocked' : 'active' } 
-          : u
-      ));
+      await Promise.all(selectedUsers.map((id) => api.updateUser(id, { status: action === 'block' ? 'blocked' : 'active' })));
+      await fetchUsers();
     }
     setSelectedUsers([]);
   };
@@ -89,7 +99,7 @@ const UserManagement: React.FC = () => {
     if (selectedUsers.length === paginatedUsers.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(paginatedUsers.map(u => u.uid));
+      setSelectedUsers(paginatedUsers.map(u => u.uid || (u as any).id));
     }
   };
 
@@ -139,7 +149,18 @@ const UserManagement: React.FC = () => {
             <Download className="w-4 h-4" />
             Export CSV
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100">
+          <button
+            onClick={async () => {
+              const email = window.prompt('Email');
+              if (!email) return;
+              const displayName = window.prompt('Display name', email.split('@')[0]) || email.split('@')[0];
+              const role = window.prompt('Role (admin/seller/customer/delivery)', 'customer') || 'customer';
+              const id = `user-${Date.now()}`;
+              await api.createUser({ id, uid: id, email, displayName, role, status: 'active', addresses: [] });
+              await fetchUsers();
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+          >
             <UserPlus className="w-4 h-4" />
             Add New User
           </button>
@@ -253,8 +274,8 @@ const UserManagement: React.FC = () => {
                       <input 
                         type="checkbox" 
                         className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        checked={selectedUsers.includes(user.uid)}
-                        onChange={() => toggleSelectUser(user.uid)}
+                        checked={selectedUsers.includes(user.uid || (user as any).id)}
+                        onChange={() => toggleSelectUser(user.uid || (user as any).id)}
                       />
                     </td>
                     <td className="px-6 py-4">
@@ -294,7 +315,7 @@ const UserManagement: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => handleToggleStatus(user.uid, user.status || 'active')}
+                          onClick={() => handleToggleStatus(user.uid || (user as any).id, (user as any).status || 'active')}
                           title={user.status === 'blocked' ? 'Unblock User' : 'Block User'}
                           className={`p-2 rounded-lg transition-colors ${
                             user.status === 'blocked' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'
@@ -306,7 +327,7 @@ const UserManagement: React.FC = () => {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => handleDeleteUser(user.uid)}
+                          onClick={() => handleDeleteUser(user.uid || (user as any).id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
