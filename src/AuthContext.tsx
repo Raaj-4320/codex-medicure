@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { UserProfile } from './types';
-import { auth, db } from './firebase';
+import { auth, db, firebaseConfig } from './firebase';
 import { cleanFirestoreData } from './utils/cleanFirestoreData';
 
 interface MockUser {
@@ -58,31 +58,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.error(context, error);
   };
 
-  const syncBackendUser = async (profileData: {
+  const ensureSellerPharmacy = async (seller: {
     uid: string;
-    email: string;
     displayName: string;
-    role: string;
+    email: string;
     phoneNumber?: string;
-    photoURL?: string | null;
   }) => {
     try {
-      await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: profileData.uid,
-          uid: profileData.uid,
-          email: profileData.email,
-          displayName: profileData.displayName,
-          role: profileData.role,
-          phoneNumber: profileData.phoneNumber || '',
-          photoURL: profileData.photoURL || null,
-          status: 'active',
+      console.log('[PHARMACY][ENSURE][START]', seller.uid);
+      console.log('[ENSURE] Function called for UID:', seller.uid);
+      console.log('[PHARMACY][ENSURE][CHECK_EXISTING]');
+      console.log('[ENSURE] Checking existing pharmacy...');
+      const pharmacyRef = doc(db, 'pharmacies', seller.uid);
+      const existing = await getDoc(pharmacyRef);
+      console.log('[PHARMACY][ENSURE][DOC_EXISTS]', existing.exists());
+      console.log('[PHARMACY][ENSURE][DOC_DATA]', existing.data());
+      console.log('[ENSURE] Existing doc:', existing.exists(), existing.data());
+      if (existing.exists()) {
+        console.log('[PHARMACY][ENSURE][RESULT]', 'already_exists');
+        return;
+      }
+
+      console.log('[PHARMACY][ENSURE][CREATE_START]');
+      console.log('[ENSURE] Creating pharmacy...');
+      await setDoc(
+        pharmacyRef,
+        cleanFirestoreData({
+          id: seller.uid,
+          ownerId: seller.uid,
+          sellerId: seller.uid,
+          name: `${seller.displayName}'s Pharmacy`,
+          description: '',
+          address: {},
+          contactNumber: seller.phoneNumber || '',
+          email: seller.email,
+          operatingHours: '09:00-21:00',
+          verificationStatus: 'pending',
+          status: 'pending',
+          deliveryAvailable: true,
+          pickupAvailable: true,
+          minOrderValue: 0,
+          deliveryFee: 0,
+          rating: 0,
+          reviewCount: 0,
+          image: '',
+          createdAt: serverTimestamp(),
         }),
-      });
+        { merge: true },
+      );
+      console.log('[PHARMACY][ENSURE][CREATE_DONE]');
+      console.log('[ENSURE] Pharmacy created');
+
+      const verify = await getDoc(pharmacyRef);
+      console.log('[PHARMACY][ENSURE][VERIFY]', verify.exists(), verify.data());
+      console.log('[ENSURE] Verification result:', verify.exists(), verify.data());
+      if (!verify.exists()) {
+        throw new Error('Pharmacy write verification failed');
+      }
     } catch (error) {
-      console.warn('Backend user sync failed', error);
+      console.error('[PHARMACY][ENSURE][ERROR]', error);
+      console.error('[ENSURE ERROR]', error);
+      throw error;
     }
   };
 
@@ -106,15 +142,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt:
             data.createdAt?.toDate?.()?.toISOString?.() ||
             new Date().toISOString(),
-        });
-
-        await syncBackendUser({
-          uid,
-          email: data.email || fallbackUser?.email || '',
-          displayName: data.displayName || fallbackUser?.displayName || '',
-          role: data.role || 'customer',
-          phoneNumber: data.phoneNumber || '',
-          photoURL: data.photoURL || fallbackUser?.photoURL || null,
         });
 
         return;
@@ -143,8 +170,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
 
       setProfile(fallbackProfile);
-      await syncBackendUser(fallbackProfile);
     } catch (error) {
+      console.error('[ERROR][SYNC_USER_PROFILE]', error);
       // ✅ CRITICAL FIX: do NOT crash app
       console.warn('Profile sync failed → using fallback');
 
@@ -163,6 +190,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ✅ AUTH STATE LISTENER (SAFE)
   useEffect(() => {
+    console.log('[AUTH][STATE] Listening to auth state...');
+    console.log('[FIREBASE CONFIG]', firebaseConfig.projectId);
     if (localStorage.getItem('admin') === 'true') {
       setUser({
         uid: 'admin-static',
@@ -188,6 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
+      console.log('[AUTH][STATE] User:', firebaseUser);
 
       try {
         if (!firebaseUser) {
@@ -210,7 +240,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // ✅ SAFE CALL (won’t break if permission fails)
         await syncUserProfile(firebaseUser.uid, currentUser);
+        const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        const role = profileDoc.exists() ? profileDoc.data().role : 'customer';
+        if (role === 'seller') {
+          console.log('[ENSURE] Triggered from auth-state listener for UID:', firebaseUser.uid);
+          await ensureSellerPharmacy({
+            uid: firebaseUser.uid,
+            displayName: currentUser.displayName,
+            email: currentUser.email,
+          });
+        }
       } catch (error) {
+        console.error('[ERROR][AUTH_STATE_CHANGE]', error);
         logFirebaseError('Failed to sync auth state', error);
         setUser(null);
         setProfile(null);
@@ -232,6 +273,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
 
     try {
+      console.log('[AUTH][REGISTER][START]', email);
+      console.log('[REGISTER] Start');
       const credentials = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -239,6 +282,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
 
       const createdUser = credentials.user;
+      console.log('[AUTH][REGISTER][SUCCESS]', createdUser.uid);
+      console.log('[REGISTER] User created UID:', createdUser.uid);
 
       const newProfile: UserProfile = {
         uid: createdUser.uid,
@@ -263,6 +308,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { merge: true }
       );
 
+      if (newProfile.role === 'seller') {
+        console.log('[ENSURE] Triggered from register flow for UID:', newProfile.uid);
+        await ensureSellerPharmacy(newProfile);
+      }
+
       setUser({
         uid: createdUser.uid,
         email: createdUser.email || email,
@@ -271,8 +321,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setProfile(newProfile);
-      await syncBackendUser(newProfile);
     } catch (error) {
+      console.error('[AUTH][REGISTER][ERROR]', error);
       logFirebaseError('Registration failed', error);
       throw error;
     } finally {
@@ -285,6 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
 
     try {
+      console.log('[AUTH][LOGIN][START]', email);
       // ✅ STATIC ADMIN LOGIN (ADD THIS BLOCK)
       if (email === 'raj.golakiya0@gmail.com' && password === '123') {
         const adminUser: MockUser = {
@@ -307,8 +358,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setUser(adminUser);
         setProfile(adminProfile);
-        await syncBackendUser(adminProfile);
-
         // 🔥 Prevent Firebase override
         localStorage.setItem('admin', 'true');
 
@@ -323,6 +372,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
 
       const firebaseUser = credentials.user;
+      console.log('[AUTH][LOGIN][SUCCESS]', firebaseUser.uid);
+      console.log('[AUTH] currentUser:', firebaseUser);
 
       const currentUser: MockUser = {
         uid: firebaseUser.uid,
@@ -334,8 +385,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(currentUser);
       await syncUserProfile(firebaseUser.uid, currentUser);
+      const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      const role = profileDoc.exists() ? profileDoc.data().role : 'customer';
+      if (role === 'seller') {
+        console.log('[ENSURE] Triggered from login flow for UID:', firebaseUser.uid);
+        await ensureSellerPharmacy({
+          uid: firebaseUser.uid,
+          displayName: currentUser.displayName,
+          email: currentUser.email,
+        });
+      }
+
+      const manualCheck = await getDoc(doc(db, 'pharmacies', firebaseUser.uid));
+      console.log('[MANUAL CHECK]', manualCheck.exists(), manualCheck.data());
+      console.log('[DEBUG][DIRECT_FIRESTORE]', manualCheck.exists(), manualCheck.data());
 
     } catch (error) {
+      console.error('[AUTH][LOGIN][ERROR]', error);
       logFirebaseError('Login failed', error);
       throw error;
     } finally {

@@ -41,7 +41,7 @@ const SellerVerification: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { verificationStatus: statusFilter });
+      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { status: statusFilter });
       setRequests(data);
     } catch (error) {
       console.error('Failed to fetch pharmacy requests', error);
@@ -54,7 +54,7 @@ const SellerVerification: React.FC = () => {
     setProcessing(true);
     try {
       await api.updatePharmacy(id, {
-        verificationStatus: newStatus,
+        status: newStatus,
         rejectionReason: reason || '',
       });
       setRequests(requests.filter(r => r.id !== id));
