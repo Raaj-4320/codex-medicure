@@ -55,6 +55,10 @@ const SellerDashboard: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addMedicineError, setAddMedicineError] = useState('');
   const [addMedicineSuccess, setAddMedicineSuccess] = useState('');
+  const [hasPharmacy, setHasPharmacy] = useState(true);
+  const [onboardingName, setOnboardingName] = useState('');
+  const [onboardingPhone, setOnboardingPhone] = useState('');
+  const [onboardingSubmitting, setOnboardingSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,9 +66,10 @@ const SellerDashboard: React.FC = () => {
       
       try {
         setLoading(true);
-        const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+        const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
         const myPharmacy = pharmacies[0];
         if (!myPharmacy) {
+          setHasPharmacy(false);
           setStats({
             todayOrders: 0,
             pendingPrescriptions: 0,
@@ -78,6 +83,7 @@ const SellerDashboard: React.FC = () => {
           setNotifications([]);
           return;
         }
+        setHasPharmacy(true);
 
         const [sellerOrders, inventory, prescriptions, sellerNotifications] = await Promise.all([
           api.getOrders({ pharmacyId: myPharmacy.id }),
@@ -115,7 +121,7 @@ const SellerDashboard: React.FC = () => {
 
   const handleAddMedicine = async (values: AddMedicineValues) => {
     if (!profile?.uid) throw new Error('Seller profile not found');
-    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
     const pharmacy = pharmacies[0];
     if (!pharmacy) throw new Error('No pharmacy found');
 
@@ -147,6 +153,52 @@ const SellerDashboard: React.FC = () => {
   ];
 
   if (loading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>;
+  if (!hasPharmacy) {
+    const createOnboardingPharmacy = async () => {
+      if (!profile?.uid) return;
+      setOnboardingSubmitting(true);
+      try {
+        await api.createPharmacy({
+          id: profile.uid,
+          ownerId: profile.uid,
+          sellerId: profile.uid,
+          name: onboardingName || `${profile.displayName || 'Seller'} Pharmacy`,
+          contactNumber: onboardingPhone,
+          email: profile.email,
+          status: 'pending',
+          verificationStatus: 'pending',
+          address: {},
+          description: '',
+          operatingHours: '09:00-21:00',
+        });
+        window.location.reload();
+      } finally {
+        setOnboardingSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Complete your pharmacy onboarding</h2>
+          <p className="text-slate-600 mb-6">Your seller account is active, but your pharmacy profile is missing. Submit basic details to create it instantly.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <input value={onboardingName} onChange={(e) => setOnboardingName(e.target.value)} placeholder="Pharmacy Name" className="px-3 py-2 rounded-xl border border-slate-200" />
+            <input value={onboardingPhone} onChange={(e) => setOnboardingPhone(e.target.value)} placeholder="Contact Number" className="px-3 py-2 rounded-xl border border-slate-200" />
+          </div>
+          <div className="flex items-center gap-3">
+            <button disabled={onboardingSubmitting} onClick={createOnboardingPharmacy} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60">
+              {onboardingSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+              Create Pharmacy
+            </button>
+            <Link to="/seller/profile" className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition-colors">
+              Open Profile
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
