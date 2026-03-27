@@ -56,7 +56,7 @@ const PrescriptionManagement: React.FC = () => {
 
   const loadPrescriptions = async () => {
     if (!profile) return;
-    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
     if (!pharmacies.length) {
       setErrorMessage('No pharmacy found for this seller account.');
       setPrescriptions([]);
