@@ -107,6 +107,8 @@ const AppRoutes = () => {
       <Route path="/seller/register" element={<RegisterPage role="seller" />} />
 
       <Route path="/admin/login" element={<LoginPage role="admin" />} />
+      <Route path="/delivery/login" element={<LoginPage role="delivery" />} />
+      <Route path="/delivery/register" element={<RegisterPage role="delivery" />} />
 
       {/* Customer Routes */}
       <Route path="/" element={<ProtectedRoute allowedRoles={['customer']}><MainLayout /></ProtectedRoute>}>

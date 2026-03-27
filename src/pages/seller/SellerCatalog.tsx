@@ -16,7 +16,7 @@ const SellerCatalog: React.FC = () => {
 
   const loadData = async () => {
     if (!profile?.uid) return;
-    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
     const pharmacy = pharmacies[0];
     if (!pharmacy) {
       setErrorMessage('No pharmacy found');

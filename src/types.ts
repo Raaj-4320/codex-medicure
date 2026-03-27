@@ -100,6 +100,7 @@ export interface UserProfile {
 export interface Pharmacy {
   id: string;
   sellerId: string;
+  ownerId?: string;
   name: string;
   description: string;
   address: Partial<Address>;
@@ -107,6 +108,7 @@ export interface Pharmacy {
   email: string;
   operatingHours: string;
   verificationStatus: 'pending' | 'verified' | 'rejected';
+  status?: 'pending' | 'verified' | 'rejected';
   deliveryAvailable: boolean;
   pickupAvailable: boolean;
   minOrderValue: number;

@@ -77,7 +77,7 @@ const ComplianceRisk: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {docs.map((doc) => (
+              {(Array.isArray(docs) ? docs : []).map((doc) => (
                 <tr key={doc.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-medium text-slate-900">{doc.sellerId}</td>
                   <td className="px-4 py-3 capitalize">{doc.type}</td>
