@@ -13,6 +13,7 @@ import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
 import { SellerMedicine } from '../../types';
 import AddMedicineModal, { AddMedicineValues } from '../../components/medicine/AddMedicineModal';
+import { logEvent } from '../../utils/logger';
 
 const InventoryManagement: React.FC = () => {
   const { profile } = useAuth();
@@ -25,11 +26,22 @@ const InventoryManagement: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchInventory = async () => {
+    logEvent('SELLER.INVENTORY.FETCH.START', { userId: profile?.uid });
     if (!profile) return;
     try {
       setLoading(true);
-      const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+      const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
+      logEvent('DATA.EXPECTATION', {
+        page: 'Seller Inventory',
+        expected: { pharmacyId: 'string' },
+        actual: pharmacies,
+      });
       if (pharmacies.length === 0) {
+        logEvent('UI.STATE', {
+          condition: 'NO_PHARMACY',
+          reason: 'pharmacies.length === 0',
+          userId: profile.uid,
+        });
         setErrorMessage('No pharmacy found for this seller account.');
         setMedicines([]);
         return;
@@ -39,19 +51,44 @@ const InventoryManagement: React.FC = () => {
       setPharmacyId(pId);
 
       const inventory = await api.getInventory({ pharmacyId: pId });
+      logEvent('DATA.EXPECTATION', {
+        page: 'Seller Inventory',
+        expected: {
+          pharmacyId: 'string',
+          medicineMasterId: 'string',
+          price: 'number',
+          stock: 'number',
+        },
+        actual: inventory,
+      });
 
       const enriched = await Promise.all(inventory.map(async (item: any) => {
+        if (!item.medicineMasterId) {
+          logEvent('DATA.ERROR', {
+            type: 'MISSING_MEDICINE_MASTER_ID',
+            item,
+          });
+        }
         const masterData = item.medicineMasterId
           ? await api.getMedicines({ id: item.medicineMasterId, includeAll: 'true' })
           : [];
+        const resolvedMasterData = Array.isArray(masterData) ? masterData[0] : masterData;
+        if (!resolvedMasterData) {
+          logEvent('DATA.ERROR', {
+            type: 'JOIN_FAILED_MEDICINE_MASTER',
+            item,
+          });
+        }
         return {
           ...item,
-          masterData: Array.isArray(masterData) ? masterData[0] : masterData
+          masterData: resolvedMasterData
         };
       }));
 
       setMedicines(enriched);
+      logEvent('SELLER.INVENTORY.FETCH.RESULT', { count: enriched.length });
     } catch (err: any) {
+      logEvent('ERROR.FETCH_INVENTORY', { error: err });
       setErrorMessage(err?.message || 'Error fetching inventory');
     } finally {
       setLoading(false);
@@ -59,16 +96,34 @@ const InventoryManagement: React.FC = () => {
   };
 
   useEffect(() => {
+    logEvent('UI.TAB_LOAD', {
+      panel: 'SELLER',
+      page: 'Inventory',
+      expectedData: ['pharmacy', 'inventory', 'medicineMaster'],
+    });
+    logEvent('SYSTEM.FLOW', {
+      panel: 'SELLER',
+      page: 'Inventory',
+      requiredData: ['pharmacy', 'inventory', 'medicineMaster'],
+      apiCalls: ['getPharmacies', 'getInventory', 'getMedicines'],
+    });
     fetchInventory();
   }, [profile]);
 
   const handleAddMedicineRequest = async (values: AddMedicineValues) => {
     if (!profile?.uid) throw new Error('Seller profile not found');
     if (!pharmacyId) throw new Error('No pharmacy found');
+    const masters = await api.getMedicines({ includeAll: 'true' });
+    const selectedMaster = masters.find((m: any) => m.brandName?.toLowerCase() === values.name.toLowerCase());
+    if (!selectedMaster?.id) {
+      logEvent('DATA.ERROR', { type: 'MISSING_MEDICINE_MASTER_ID', values });
+      throw new Error('Please use a medicine available in medicine master.');
+    }
     await api.createMedicine({
       ...values,
       pharmacyId,
       sellerId: profile.uid,
+      medicineMasterId: selectedMaster.id,
       status: 'pending',
     });
     setSuccessMessage('Medicine submitted for admin approval.');
@@ -110,7 +165,15 @@ const InventoryManagement: React.FC = () => {
           <p className="text-slate-500 text-sm">Manage your medicine stock and pricing</p>
         </div>
         <button
-          onClick={() => { setSuccessMessage(''); setShowAddModal(true); }}
+          onClick={() => {
+            logEvent('UI.BUTTON_CLICK', {
+              panel: 'SELLER',
+              page: 'Inventory',
+              action: 'ADD_MEDICINE',
+            });
+            setSuccessMessage('');
+            setShowAddModal(true);
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
         >
           <Plus className="w-4 h-4" />
