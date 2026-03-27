@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
+import {
   ShoppingBag, 
   Trash2, 
   Plus, 
@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Package
 } from 'lucide-react';
+import { logUI } from '../../utils/uiLogger';
 
 const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,12 +28,14 @@ const CartPage: React.FC = () => {
     });
     setCartItems(newCart);
     localStorage.setItem('cart', JSON.stringify(newCart));
+    logUI('CART_QUANTITY', { context: `Item ${id} delta ${delta}`, success: true });
   };
 
   const removeItem = (id: string) => {
     const newCart = cartItems.filter(item => item.id !== id);
     setCartItems(newCart);
     localStorage.setItem('cart', JSON.stringify(newCart));
+    logUI('CART_REMOVE', { context: `Item ${id}`, success: true });
   };
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -129,7 +132,10 @@ const CartPage: React.FC = () => {
             </div>
             
             <button 
-              onClick={() => navigate('/checkout')}
+              onClick={() => {
+                logUI('CHECKOUT_CLICK', { context: 'Cart checkout button', success: true });
+                navigate('/checkout');
+              }}
               className="w-full mt-8 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
             >
               Checkout

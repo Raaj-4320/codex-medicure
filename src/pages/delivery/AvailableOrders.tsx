@@ -15,6 +15,7 @@ import {
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { logUI } from '../../utils/uiLogger';
 
 const AvailableOrders: React.FC = () => {
   const { profile } = useAuth();
@@ -24,8 +25,7 @@ const AvailableOrders: React.FC = () => {
 
   const fetchAvailableOrders = async () => {
     try {
-      // 1. Get all orders that are 'ready'
-      const readyOrders = await api.getOrders({ status: 'ready' });
+      const readyOrders = await api.getOrders({ status: 'dispatched' });
       
       // 2. Get all active delivery assignments
       const assignments = await api.getDeliveryAssignments();
@@ -50,6 +50,7 @@ const AvailableOrders: React.FC = () => {
   const handleAccept = async (orderId: string) => {
     setAcceptedOrderId(orderId);
     try {
+      logUI('DELIVERY_ACCEPT', { context: `Accept order ${orderId}`, success: true });
       // 1. Create delivery assignment
       await api.createDeliveryAssignment({
         orderId,
@@ -57,7 +58,7 @@ const AvailableOrders: React.FC = () => {
         status: 'assigned'
       });
 
-      // 2. Update order status to 'on_the_way'
+      // 2. Update order status to on_the_way (accepted)
       await api.updateOrder(orderId, { status: 'on_the_way' });
 
       setTimeout(() => {
@@ -65,6 +66,7 @@ const AvailableOrders: React.FC = () => {
         setAcceptedOrderId(null);
       }, 2000);
     } catch (error) {
+      logUI('DELIVERY_ACCEPT', { context: `Accept order ${orderId}`, success: false, reason: (error as Error)?.message || 'accept failed' });
       console.error('Failed to accept order:', error);
       setAcceptedOrderId(null);
     }
@@ -157,7 +159,10 @@ const AvailableOrders: React.FC = () => {
 
                 <div className="flex gap-3">
                   <button 
-                    onClick={() => setOrders(orders.filter(o => o.id !== order.id))}
+                    onClick={() => {
+                      setOrders(orders.filter(o => o.id !== order.id));
+                      logUI('DELIVERY_REJECT', { context: `Reject order ${order.id}`, success: true });
+                    }}
                     className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95"
                   >
                     <XCircle size={18} />

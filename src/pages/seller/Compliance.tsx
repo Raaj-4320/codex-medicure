@@ -17,7 +17,7 @@ const Compliance: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await api.getCompliance({ sellerId: profile.uid });
+      const data = await api.getCompliance({ ownerId: profile.uid });
       setDocs(data);
     } catch (err: any) {
       setError(err?.message || 'Failed to load compliance documents');
@@ -36,7 +36,7 @@ const Compliance: React.FC = () => {
     setSubmitting(true);
     setError('');
     try {
-      await api.createCompliance({ sellerId: profile.uid, type, documentUrl });
+      await api.createCompliance({ ownerId: profile.uid, sellerId: profile.uid, type, documentUrl });
       setDocumentUrl('');
       await loadDocs();
     } catch (err: any) {
@@ -88,7 +88,7 @@ const Compliance: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {docs.map((doc) => (
+              {(Array.isArray(docs) ? docs : []).map((doc) => (
                 <tr key={doc.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-medium text-slate-900">{doc.type}</td>
                   <td className="px-4 py-3 capitalize">{doc.status}</td>

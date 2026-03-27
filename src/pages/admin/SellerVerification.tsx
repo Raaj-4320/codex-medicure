@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../services/api';
+import { logFlow } from '../../utils/flowLogger';
+import { logUI } from '../../utils/uiLogger';
 
 const SellerVerification: React.FC = () => {
   const [requests, setRequests] = useState<any[]>([]);
@@ -41,9 +43,27 @@ const SellerVerification: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { verificationStatus: statusFilter });
+      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { status: statusFilter });
       setRequests(data);
+      if (statusFilter === 'pending') {
+        logFlow('ADMIN_PENDING_CHECK', {
+          expected: { status: 'pending' },
+          received: { count: data.length },
+          success: true,
+        });
+      }
+      logFlow('ADMIN_VERIFICATION_FETCH', {
+        expected: { status: statusFilter },
+        received: { count: data.length },
+        success: true,
+      });
     } catch (error) {
+      logFlow('ADMIN_VERIFICATION_FETCH', {
+        expected: { status: statusFilter },
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to fetch pharmacy requests', error);
     } finally {
       setLoading(false);
@@ -53,15 +73,28 @@ const SellerVerification: React.FC = () => {
   const handleStatusUpdate = async (id: string, newStatus: string, reason?: string) => {
     setProcessing(true);
     try {
+      logUI('ADMIN_SELLER_REVIEW', { context: `Set ${id} to ${newStatus}`, success: true });
       await api.updatePharmacy(id, {
-        verificationStatus: newStatus,
+        status: newStatus,
         rejectionReason: reason || '',
+      });
+      logFlow('ADMIN_VERIFICATION_UPDATE', {
+        expected: { id, newStatus },
+        received: { id, newStatus },
+        success: true,
       });
       setRequests(requests.filter(r => r.id !== id));
       setSelectedRequest(null);
       setShowRejectModal(false);
       setRejectionReason('');
     } catch (error) {
+      logUI('ADMIN_SELLER_REVIEW', { context: `Set ${id} to ${newStatus}`, success: false, reason: (error as Error)?.message || 'update failed' });
+      logFlow('ADMIN_VERIFICATION_UPDATE', {
+        expected: { id, newStatus },
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to update pharmacy status', error);
     } finally {
       setProcessing(false);
