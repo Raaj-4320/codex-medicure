@@ -1,22 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Plus, Eye, EyeOff, Star, Trash2, Edit2 } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
-import AddMedicineModal, { AddMedicineValues } from '../../components/medicine/AddMedicineModal';
+import { logFlow } from '../../utils/flowLogger';
 
 const SellerCatalog: React.FC = () => {
   const { profile } = useAuth();
   const [inventory, setInventory] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [pharmacyId, setPharmacyId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
 
   const loadData = async () => {
     if (!profile?.uid) return;
-    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
     const pharmacy = pharmacies[0];
     if (!pharmacy) {
       setErrorMessage('No pharmacy found');
@@ -24,29 +21,41 @@ const SellerCatalog: React.FC = () => {
       return;
     }
     setErrorMessage('');
-    setPharmacyId(pharmacy.id);
 
     const [items, masters] = await Promise.all([
       api.getInventory({ pharmacyId: pharmacy.id }),
       api.getMedicines({ includeAll: 'true' }),
     ]);
 
-    setInventory(items.map((inv: any) => ({
+    const joinedInventory = items.map((inv: any) => ({
       ...inv,
-      masterData: masters.find((m: any) => m.id === inv.medicineMasterId) || { brandName: inv.name, genericName: inv.name, category: 'General', image: 'https://picsum.photos/seed/med/200/200' }
-    })));
+      masterData: masters.find((m: any) => m.id === inv.medicineMasterId) || null
+    }));
+    joinedInventory.forEach((item: any) => {
+      if (!item.medicineMasterId || !item.masterData) {
+        logFlow('INVENTORY_JOIN', {
+          expected: ['medicineMasterId', 'masterData'],
+          received: { itemId: item.id, medicineMasterId: item.medicineMasterId, hasMaster: Boolean(item.masterData) },
+          success: false,
+        });
+      }
+    });
+    setInventory(joinedInventory);
+    logFlow('CATALOG_LOAD', {
+      expected: ['inventory joined with medicine_master'],
+      received: { inventoryCount: joinedInventory.length },
+      success: true,
+    });
   };
 
   useEffect(() => {
+    logFlow('CATALOG_READ_ONLY', {
+      expected: ['catalog view only'],
+      received: { mode: 'read_only' },
+      success: true,
+    });
     loadData().catch((e) => setErrorMessage(e?.message || 'Failed to load catalog'));
   }, [profile]);
-
-  const submitMedicine = async (values: AddMedicineValues) => {
-    if (!profile?.uid || !pharmacyId) throw new Error('No pharmacy found');
-    await api.createMedicine({ ...values, sellerId: profile.uid, pharmacyId, status: 'pending' });
-    setSuccessMessage('Medicine submitted for admin approval.');
-    await loadData();
-  };
 
   const filtered = inventory.filter((item: any) => `${item.masterData?.brandName || ''} ${item.masterData?.genericName || ''}`.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -57,14 +66,10 @@ const SellerCatalog: React.FC = () => {
           <h1 className="text-2xl font-bold text-slate-900">Medicine Catalog</h1>
           <p className="text-slate-500 text-sm">Manage your store's medicine listings and pricing</p>
         </div>
-        <button onClick={() => { setSuccessMessage(''); setShowAddModal(true); }} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 rounded-2xl text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
-          <Plus className="w-5 h-5" />
-          Add New Listing
-        </button>
+        <p className="text-xs text-slate-500">Listings are created from Inventory only.</p>
       </div>
 
       {errorMessage && <div className="p-3 rounded-xl bg-amber-50 text-amber-700 text-sm font-medium">{errorMessage}</div>}
-      {successMessage && <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium">{successMessage}</div>}
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="relative flex-1">
@@ -77,26 +82,20 @@ const SellerCatalog: React.FC = () => {
         {filtered.map((item: any) => (
           <motion.div key={item.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="relative h-40 bg-slate-50 p-4 flex items-center justify-center">
-              <img src={item.masterData?.image} alt={item.masterData?.brandName} className="max-h-full max-w-full object-contain" />
-              <div className="absolute top-3 right-3 flex flex-col gap-2">
-                <button onClick={() => api.updateInventory(item.id, { isVisible: !item.isVisible }).then(loadData)} className="p-2 rounded-lg shadow-sm bg-white text-emerald-600">{item.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}</button>
-                <button onClick={() => api.updateInventory(item.id, { isFeatured: !item.isFeatured }).then(loadData)} className="p-2 rounded-lg shadow-sm bg-white text-slate-500"><Star className={`w-4 h-4 ${item.isFeatured ? 'fill-current text-amber-500' : ''}`} /></button>
+              <img src={item.masterData?.image || undefined} alt={item.masterData?.brandName} className="max-h-full max-w-full object-contain" />
+              <div className="absolute top-3 right-3 px-2 py-1 text-[10px] font-bold rounded bg-white/90 text-slate-600">
+                READ ONLY
               </div>
             </div>
             <div className="p-5 space-y-3">
               <h3 className="font-bold text-slate-900">{item.masterData?.brandName}</h3>
               <p className="text-xs text-slate-500 italic">{item.masterData?.genericName}</p>
               <div className="flex items-center justify-between text-sm"><span>₹{item.price}</span><span>Stock: {item.stock}</span></div>
-              <div className="flex items-center gap-2">
-                <button className="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold"><Edit2 className="w-3.5 h-3.5 inline mr-1" />Edit</button>
-                <button onClick={async () => { if (!window.confirm('Delete this listing?')) return; await api.deleteInventory(item.id); await loadData(); }} className="p-2 bg-slate-50 text-red-600 rounded-xl border border-slate-100"><Trash2 className="w-4 h-4" /></button>
-              </div>
+              <p className="text-[11px] text-slate-500">Manage listing actions from Inventory page.</p>
             </div>
           </motion.div>
         ))}
       </div>
-
-      <AddMedicineModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onSubmit={submitMedicine} role="seller" />
     </div>
   );
 };

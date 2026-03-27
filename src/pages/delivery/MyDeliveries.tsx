@@ -18,6 +18,7 @@ import {
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { logUI } from '../../utils/uiLogger';
 
 const MyDeliveries: React.FC = () => {
   const { profile } = useAuth();
@@ -45,8 +46,7 @@ const MyDeliveries: React.FC = () => {
         
         const order = await api.getOrderById(assignment.orderId);
         setActiveOrder(order);
-        if (order.status === 'on_the_way') setActiveStep('pickup');
-        if (order.status === 'picked_up') setActiveStep('delivery');
+        if (order.status === 'on_the_way') setActiveStep('delivery');
         if (order.status === 'delivered') setActiveStep('completed');
       } else {
         setActiveAssignment(null);
@@ -68,20 +68,14 @@ const MyDeliveries: React.FC = () => {
   const handleVerifyOtp = async () => {
     setIsVerifying(true);
     try {
-      if (activeStep === 'pickup') {
-        // 1. Update order status to 'picked_up'
-        await api.updateOrder(activeOrder.id, { status: 'picked_up' });
-        setActiveStep('delivery');
-      } else {
-        // 1. Update order status to 'delivered'
-        await api.updateOrder(activeOrder.id, { status: 'delivered' });
-        // 2. Update assignment status to 'completed'
-        await api.updateDeliveryAssignment(activeAssignment.id, { status: 'completed' });
-        setActiveStep('completed');
-      }
+      logUI('DELIVERY_COMPLETE', { context: `Complete order ${activeOrder.id}`, success: true });
+      await api.updateOrder(activeOrder.id, { status: 'delivered' });
+      await api.updateDeliveryAssignment(activeAssignment.id, { status: 'completed' });
+      setActiveStep('completed');
       setShowOtpModal(false);
       setOtpValue('');
     } catch (error) {
+      logUI('DELIVERY_COMPLETE', { context: `Complete order ${activeOrder?.id || 'unknown'}`, success: false, reason: (error as Error)?.message || 'delivery completion failed' });
       console.error('Verification failed:', error);
     } finally {
       setIsVerifying(false);
@@ -152,7 +146,7 @@ const MyDeliveries: React.FC = () => {
           <div>
             <h2 className="font-bold text-slate-900">Order #ORD-7892</h2>
             <p className="text-xs text-slate-500">
-              {activeStep === 'pickup' ? 'Heading to Pharmacy' : 'Heading to Customer'}
+              {'Heading to Customer'}
             </p>
           </div>
         </div>
@@ -205,14 +199,14 @@ const MyDeliveries: React.FC = () => {
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
         <div className="flex items-center gap-3 mb-6">
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${activeStep === 'pickup' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
-            {activeStep === 'pickup' ? <Package size={24} /> : <MapPin size={24} />}
+            <MapPin size={24} />
           </div>
           <div>
             <h3 className="font-bold text-slate-900">
-              {activeStep === 'pickup' ? 'City Health Pharmacy' : 'Jane Smith'}
+              {'Jane Smith'}
             </h3>
             <p className="text-xs text-slate-500">
-              {activeStep === 'pickup' ? 'Satellite, Ahmedabad' : 'Vastrapur, Ahmedabad'}
+              {'Vastrapur, Ahmedabad'}
             </p>
           </div>
         </div>
@@ -246,7 +240,7 @@ const MyDeliveries: React.FC = () => {
             onClick={() => setShowOtpModal(true)}
             className="flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-slate-200"
           >
-            {activeStep === 'pickup' ? 'Confirm Pickup' : 'Complete Delivery'}
+            Complete Delivery
             <ChevronRight size={20} />
           </button>
         </div>

@@ -1,7 +1,8 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LocationProvider } from './LocationContext';
+import { ensureSeedData } from './utils/ensureSeedData';
 
 // Layouts
 import MainLayout from './components/layout/MainLayout';
@@ -84,6 +85,11 @@ const ProtectedRoute: React.FC<{
 
 const AppRoutes = () => {
   const { profile } = useAuth();
+  useLocation();
+
+  useEffect(() => {
+    ensureSeedData();
+  }, []);
 
   const getDashboardRedirect = () => {
     if (!profile) return <LandingPage />;
@@ -107,6 +113,8 @@ const AppRoutes = () => {
       <Route path="/seller/register" element={<RegisterPage role="seller" />} />
 
       <Route path="/admin/login" element={<LoginPage role="admin" />} />
+      <Route path="/delivery/login" element={<LoginPage role="delivery" />} />
+      <Route path="/delivery/register" element={<RegisterPage role="delivery" />} />
 
       {/* Customer Routes */}
       <Route path="/" element={<ProtectedRoute allowedRoles={['customer']}><MainLayout /></ProtectedRoute>}>

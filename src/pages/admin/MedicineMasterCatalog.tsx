@@ -29,10 +29,18 @@ const MedicineMasterCatalog: React.FC = () => {
   }, []);
 
   const createMedicine = async (values: AddMedicineValues) => {
-    const pharmacies = await api.getPharmacies();
-    const pharmacyId = pharmacies[0]?.id;
-    if (!pharmacyId) throw new Error('No pharmacy available to associate medicine');
-    await api.createMedicine({ ...values, pharmacyId, status: 'approved' });
+    await api.createMedicine({
+      brandName: values.name,
+      genericName: values.genericName,
+      category: values.category,
+      dosageForm: values.dosageForm,
+      strength: values.strength,
+      manufacturer: values.manufacturer,
+      description: values.description,
+      status: 'approved',
+      rxRequired: false,
+      schedule: 'None',
+    });
     await loadMedicines();
   };
 
