@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
+import { logFlow } from '../../utils/flowLogger';
+import { logUI } from '../../utils/uiLogger';
 
 export default function SellerOrders() {
   const { profile } = useAuth();
@@ -23,17 +25,38 @@ export default function SellerOrders() {
 
   const fetchOrders = async () => {
     try {
-      const pharmacies = await api.getPharmacies({ sellerId: profile?.uid });
+      logFlow('SELLER_ORDERS_FETCH_START', {
+        expected: ['pharmacy lookup by ownerId', 'orders by pharmacyId'],
+        received: { ownerId: profile?.uid || null },
+        success: true,
+      });
+      const pharmacies = await api.getPharmacies({ ownerId: profile?.uid });
       const myPharmacy = pharmacies[0];
       if (!myPharmacy) {
         setHasPharmacy(false);
         setOrders([]);
+        logFlow('SELLER_ORDERS_FETCH', {
+          expected: ['pharmacy for seller'],
+          received: { ownerId: profile?.uid || null, hasPharmacy: false },
+          success: false,
+        });
         return;
       }
       setHasPharmacy(true);
       const data = await api.getOrders({ pharmacyId: myPharmacy.id });
       setOrders(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      logFlow('SELLER_ORDERS_FETCH', {
+        expected: ['orders for pharmacyId'],
+        received: { pharmacyId: myPharmacy.id, count: data.length },
+        success: true,
+      });
     } catch (error) {
+      logFlow('SELLER_ORDERS_FETCH', {
+        expected: ['orders for pharmacyId'],
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to fetch orders:', error);
     } finally {
       setLoading(false);
@@ -50,10 +73,12 @@ export default function SellerOrders() {
     setUpdatingId(orderId);
     setErrorMessage('');
     try {
+      logUI('ORDER_STATUS_UPDATE', { context: `Seller ${newStatus} for ${orderId}`, success: true });
       await api.updateOrder(orderId, { status: newStatus });
       await fetchOrders();
     } catch (error: any) {
       setErrorMessage(error?.message || 'Failed to update order status');
+      logUI('ORDER_STATUS_UPDATE', { context: `Seller ${newStatus} for ${orderId}`, success: false, reason: error?.message || 'Update failed' });
       console.error('Failed to update order status:', error);
     } finally {
       setUpdatingId(null);
@@ -63,9 +88,8 @@ export default function SellerOrders() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-amber-100 text-amber-700';
-      case 'confirmed': return 'bg-blue-100 text-blue-700';
-      case 'packed': return 'bg-purple-100 text-purple-700';
-      case 'ready': return 'bg-emerald-100 text-emerald-700';
+      case 'approved': return 'bg-blue-100 text-blue-700';
+      case 'dispatched': return 'bg-purple-100 text-purple-700';
       case 'delivered': return 'bg-slate-100 text-slate-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
       default: return 'bg-slate-100 text-slate-700';
@@ -144,30 +168,21 @@ export default function SellerOrders() {
                           Reject
                         </button>
                         <button 
-                          onClick={() => updateStatus(order.id, 'confirmed')}
+                          onClick={() => updateStatus(order.id, 'approved')}
                           disabled={updatingId === order.id}
                           className="px-6 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
                         >
-                          Confirm Order
+                          Approve Order
                         </button>
                       </>
                     )}
-                    {order.status === 'confirmed' && (
+                    {order.status === 'approved' && (
                       <button 
-                        onClick={() => updateStatus(order.id, 'packed')}
+                        onClick={() => updateStatus(order.id, 'dispatched')}
                         disabled={updatingId === order.id}
                         className="px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all"
                       >
-                        Mark as Packed
-                      </button>
-                    )}
-                    {order.status === 'packed' && (
-                      <button 
-                        onClick={() => updateStatus(order.id, 'ready')}
-                        disabled={updatingId === order.id}
-                        className="px-6 py-2 bg-purple-600 text-white text-sm font-bold rounded-xl hover:bg-purple-700 transition-all"
-                      >
-                        Ready for Pickup
+                        Dispatch Order
                       </button>
                     )}
                   </div>

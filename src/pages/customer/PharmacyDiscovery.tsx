@@ -15,6 +15,8 @@ import {
 import { api } from '../../services/api';
 import { useLocation } from '../../LocationContext';
 import { Pharmacy } from '../../types';
+import { logUI } from '../../utils/uiLogger';
+import { checkExpectations, validateDataBinding } from '../../utils/flowLogger';
 
 const PharmacyDiscovery: React.FC = () => {
   const { location } = useLocation();
@@ -33,6 +35,11 @@ const PharmacyDiscovery: React.FC = () => {
         // For demo, we'll fetch all verified pharmacies
         const allPharmacies = await api.getPharmacies({ verificationStatus: 'verified' });
         setPharmacies(allPharmacies);
+        checkExpectations({
+          page: 'Customer',
+          expected: ['pharmacies'],
+          result: { pharmacies: allPharmacies },
+        });
       } catch (err) {
         console.error('Error discovering pharmacies:', err);
       } finally {
@@ -46,6 +53,15 @@ const PharmacyDiscovery: React.FC = () => {
   const filteredList = pharmacies.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  if (searchQuery.trim() === '') {
+    validateDataBinding({
+      area: 'CustomerPharmacyDiscovery',
+      dataCount: pharmacies.length,
+      renderedCount: filteredList.length,
+      expectedKeys: ['id', 'name', 'address'],
+      sample: pharmacies[0],
+    });
+  }
 
   if (!location) {
     return (
@@ -55,7 +71,18 @@ const PharmacyDiscovery: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold text-slate-900 mb-2">Location Not Set</h2>
         <p className="text-slate-500 max-w-md mb-8">Please set your delivery location to discover pharmacies that serve your area.</p>
-        <button className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold shadow-lg shadow-emerald-100">
+        <button
+          onClick={() =>
+            logUI('ACTION', {
+              component: 'PharmacyDiscovery',
+              action: 'Set Location',
+              expected: 'should open location modal',
+              status: 'partial',
+              reason: 'Location picker not wired in this page',
+            })
+          }
+          className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold shadow-lg shadow-emerald-100"
+        >
           Set Location
         </button>
       </div>
@@ -81,7 +108,18 @@ const PharmacyDiscovery: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all"
             />
           </div>
-          <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
+          <button
+            onClick={() =>
+              logUI('ACTION', {
+                component: 'PharmacyDiscovery',
+                action: 'Filter Pharmacies',
+                expected: 'should apply filter options',
+                status: 'partial',
+                reason: 'Filter options are not implemented',
+              })
+            }
+            className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50"
+          >
             <Filter className="w-5 h-5" />
           </button>
         </div>
@@ -101,7 +139,7 @@ const PharmacyDiscovery: React.FC = () => {
             >
               <div className="h-48 relative overflow-hidden">
                 <img 
-                  src={pharmacy.image} 
+                  src={pharmacy.image || undefined} 
                   alt={pharmacy.name} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />

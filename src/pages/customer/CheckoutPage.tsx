@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../../AuthContext';
 import { api } from '../../services/api';
 import { motion, AnimatePresence } from 'motion/react';
+import { logUI } from '../../utils/uiLogger';
 
 export default function CheckoutPage() {
   const { profile } = useAuth();
@@ -44,6 +45,7 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async () => {
     setLoading(true);
     setError('');
+    logUI('ORDER_SUBMIT', { context: 'Checkout submit clicked', success: true });
     try {
       // 1. Create Order
       // 1. Process Payment First
@@ -72,8 +74,12 @@ export default function CheckoutPage() {
       const orderData = {
         customerId: profile?.uid || 'customer-1',
         pharmacyId: cartItems[0]?.pharmacyId || 'pharmacy-1',
+        medicineMasterId: cartItems[0]?.medicineMasterId || cartItems[0]?.medicineId || cartItems[0]?.id || '',
+        quantity: Number(cartItems[0]?.quantity || 1),
+        price: Number(cartItems[0]?.price || 0),
         items: cartItems.map(item => ({
-          medicineId: item.medicineId || item.id,
+          medicineId: item.medicineMasterId || item.medicineId || item.id,
+          medicineMasterId: item.medicineMasterId || item.medicineId || item.id,
           quantity: item.quantity,
           price: item.price
         })),
@@ -87,6 +93,7 @@ export default function CheckoutPage() {
 
       const order = await api.createOrder(orderData);
       setOrderId(order.id);
+      logUI('ORDER_SUBMIT', { context: `Order ${order.id} created`, success: true });
 
       // 3. Clear Cart
       localStorage.removeItem('cart');
@@ -94,6 +101,7 @@ export default function CheckoutPage() {
       setStep(3); // Success step
     } catch (err: any) {
       setError(err.message || 'Failed to place order');
+      logUI('ORDER_SUBMIT', { context: 'Checkout submit failed', success: false, reason: err?.message || 'Unknown error' });
     } finally {
       setLoading(false);
     }
