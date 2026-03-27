@@ -15,6 +15,9 @@ import {
 import { api } from '../../services/api';
 import { useLocation } from '../../LocationContext';
 import { Pharmacy } from '../../types';
+import { logUI } from '../../utils/uiLogger';
+import { checkExpectations, validateDataBinding } from '../../utils/flowLogger';
+import { logDataFlow } from '../../utils/dataLogger';
 
 const PharmacyDiscovery: React.FC = () => {
   const { location } = useLocation();
@@ -30,9 +33,23 @@ const PharmacyDiscovery: React.FC = () => {
       }
 
       try {
-        // For demo, we'll fetch all verified pharmacies
-        const allPharmacies = await api.getPharmacies({ verificationStatus: 'verified' });
+        const allPharmacies = await api.getPharmaciesForCustomer();
         setPharmacies(allPharmacies);
+        checkExpectations({
+          page: 'Customer',
+          expected: ['pharmacies'],
+          result: { pharmacies: allPharmacies },
+        });
+        logDataFlow('CUSTOMER_PHARMACIES', {
+          source: 'FIRESTORE',
+          requested: ['pharmacies'],
+          received: allPharmacies,
+          rendered: allPharmacies.length > 0,
+          placeholder: allPharmacies.length === 0,
+          requiredFields: ['id', 'name'],
+          route: '/customer/pharmacies',
+          filters: { location: location?.city || 'unknown', query: searchQuery || '' },
+        });
       } catch (err) {
         console.error('Error discovering pharmacies:', err);
       } finally {
@@ -46,6 +63,15 @@ const PharmacyDiscovery: React.FC = () => {
   const filteredList = pharmacies.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  if (searchQuery.trim() === '') {
+    validateDataBinding({
+      area: 'CustomerPharmacyDiscovery',
+      dataCount: pharmacies.length,
+      renderedCount: filteredList.length,
+      expectedKeys: ['id', 'name', 'address'],
+      sample: pharmacies[0],
+    });
+  }
 
   if (!location) {
     return (
@@ -55,7 +81,18 @@ const PharmacyDiscovery: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold text-slate-900 mb-2">Location Not Set</h2>
         <p className="text-slate-500 max-w-md mb-8">Please set your delivery location to discover pharmacies that serve your area.</p>
-        <button className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold shadow-lg shadow-emerald-100">
+        <button
+          onClick={() =>
+            logUI('ACTION', {
+              component: 'PharmacyDiscovery',
+              action: 'Set Location',
+              expected: 'should open location modal',
+              status: 'partial',
+              reason: 'Location picker not wired in this page',
+            })
+          }
+          className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold shadow-lg shadow-emerald-100"
+        >
           Set Location
         </button>
       </div>
@@ -81,7 +118,18 @@ const PharmacyDiscovery: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all"
             />
           </div>
-          <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50">
+          <button
+            onClick={() =>
+              logUI('ACTION', {
+                component: 'PharmacyDiscovery',
+                action: 'Filter Pharmacies',
+                expected: 'should apply filter options',
+                status: 'partial',
+                reason: 'Filter options are not implemented',
+              })
+            }
+            className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50"
+          >
             <Filter className="w-5 h-5" />
           </button>
         </div>
@@ -101,7 +149,7 @@ const PharmacyDiscovery: React.FC = () => {
             >
               <div className="h-48 relative overflow-hidden">
                 <img 
-                  src={pharmacy.image} 
+                  src={pharmacy.image || undefined} 
                   alt={pharmacy.name} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -118,7 +166,7 @@ const PharmacyDiscovery: React.FC = () => {
               </div>
               
               <div className="p-5">
-                <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-emerald-600 transition-colors">{pharmacy.name}</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-emerald-600 transition-colors">{pharmacy.name || 'Profile Incomplete'}</h3>
                 <p className="text-sm text-slate-500 mb-4 line-clamp-1">{pharmacy.description}</p>
                 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100">
@@ -143,8 +191,8 @@ const PharmacyDiscovery: React.FC = () => {
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-center bg-white rounded-2xl border border-dashed border-slate-300">
           <Store className="w-12 h-12 text-slate-300 mb-4" />
-          <h3 className="text-lg font-bold text-slate-900">No Pharmacies Found</h3>
-          <p className="text-slate-500">We couldn't find any pharmacies serving your area yet.</p>
+          <h3 className="text-lg font-bold text-slate-900">No pharmacies available yet.</h3>
+          <p className="text-slate-500">Please check back later once sellers complete setup.</p>
         </div>
       )}
     </div>
