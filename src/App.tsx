@@ -1,7 +1,8 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LocationProvider } from './LocationContext';
+import { logEvent } from './utils/logger';
 
 // Layouts
 import MainLayout from './components/layout/MainLayout';
@@ -84,6 +85,22 @@ const ProtectedRoute: React.FC<{
 
 const AppRoutes = () => {
   const { profile } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    logEvent('UI.TAB_LOAD', {
+      panel: profile?.role?.toUpperCase() || 'PUBLIC',
+      page: location.pathname,
+      expectedData: ['auth', 'route-data'],
+    });
+
+    logEvent('SYSTEM.FLOW', {
+      panel: profile?.role?.toUpperCase() || 'PUBLIC',
+      page: location.pathname,
+      requiredData: ['auth', 'pharmacy', 'domain-data'],
+      apiCalls: ['getPharmacies', 'getOrders', 'getInventory', 'getMedicines'],
+    });
+  }, [location.pathname, profile?.role]);
 
   const getDashboardRedirect = () => {
     if (!profile) return <LandingPage />;
@@ -107,6 +124,8 @@ const AppRoutes = () => {
       <Route path="/seller/register" element={<RegisterPage role="seller" />} />
 
       <Route path="/admin/login" element={<LoginPage role="admin" />} />
+      <Route path="/delivery/login" element={<LoginPage role="delivery" />} />
+      <Route path="/delivery/register" element={<RegisterPage role="delivery" />} />
 
       {/* Customer Routes */}
       <Route path="/" element={<ProtectedRoute allowedRoles={['customer']}><MainLayout /></ProtectedRoute>}>

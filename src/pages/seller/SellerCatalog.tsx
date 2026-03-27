@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
 import AddMedicineModal, { AddMedicineValues } from '../../components/medicine/AddMedicineModal';
+import { logEvent } from '../../utils/logger';
 
 const SellerCatalog: React.FC = () => {
   const { profile } = useAuth();
@@ -15,10 +16,12 @@ const SellerCatalog: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const loadData = async () => {
+    logEvent('SELLER.CATALOG.LOAD.START', { userId: profile?.uid });
     if (!profile?.uid) return;
-    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+    const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
     const pharmacy = pharmacies[0];
     if (!pharmacy) {
+      logEvent('UI.STATE', { condition: 'NO_PHARMACY', reason: 'pharmacy == null', userId: profile.uid });
       setErrorMessage('No pharmacy found');
       setInventory([]);
       return;
@@ -35,9 +38,19 @@ const SellerCatalog: React.FC = () => {
       ...inv,
       masterData: masters.find((m: any) => m.id === inv.medicineMasterId) || { brandName: inv.name, genericName: inv.name, category: 'General', image: 'https://picsum.photos/seed/med/200/200' }
     })));
+    logEvent('DATA.EXPECTATION', {
+      page: 'Seller Catalog',
+      expected: { medicineMasterId: 'string', masterData: 'object' },
+      actual: items,
+    });
   };
 
   useEffect(() => {
+    logEvent('UI.TAB_LOAD', {
+      panel: 'SELLER',
+      page: 'Catalog',
+      expectedData: ['pharmacy', 'inventory', 'medicineMaster'],
+    });
     loadData().catch((e) => setErrorMessage(e?.message || 'Failed to load catalog'));
   }, [profile]);
 
@@ -77,7 +90,8 @@ const SellerCatalog: React.FC = () => {
         {filtered.map((item: any) => (
           <motion.div key={item.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="relative h-40 bg-slate-50 p-4 flex items-center justify-center">
-              <img src={item.masterData?.image} alt={item.masterData?.brandName} className="max-h-full max-w-full object-contain" />
+              {!item.masterData?.image && logEvent('DATA.WARNING', { type: 'EMPTY_IMAGE', itemId: item.id })}
+              <img src={item.masterData?.image || undefined} alt={item.masterData?.brandName} className="max-h-full max-w-full object-contain" />
               <div className="absolute top-3 right-3 flex flex-col gap-2">
                 <button onClick={() => api.updateInventory(item.id, { isVisible: !item.isVisible }).then(loadData)} className="p-2 rounded-lg shadow-sm bg-white text-emerald-600">{item.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}</button>
                 <button onClick={() => api.updateInventory(item.id, { isFeatured: !item.isFeatured }).then(loadData)} className="p-2 rounded-lg shadow-sm bg-white text-slate-500"><Star className={`w-4 h-4 ${item.isFeatured ? 'fill-current text-amber-500' : ''}`} /></button>
