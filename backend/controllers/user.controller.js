@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { getDb } from '../db/index.js';
 
 export const getUsers = async (req, res) => {
@@ -13,16 +14,25 @@ export const getUsers = async (req, res) => {
   }
 };
 
+
 export const createUser = async (req, res) => {
   try {
     const db = await getDb();
+
+    db.data.users ||= [];
+    db.data.pharmacies ||= [];
+
     const id = req.body.id || req.body.uid;
 
     if (!id || !req.body.email) {
       return res.status(400).json({ error: 'id(uid) and email are required' });
     }
 
-    const existingIndex = db.data.users.findIndex((u) => (u.id || u.uid) === id);
+    const existingIndex = db.data.users.findIndex(
+      (u) => (u.id || u.uid) === id
+    );
+
+    // 🔁 UPDATE EXISTING USER
     if (existingIndex >= 0) {
       db.data.users[existingIndex] = {
         ...db.data.users[existingIndex],
@@ -31,10 +41,12 @@ export const createUser = async (req, res) => {
         uid: id,
         updatedAt: new Date().toISOString(),
       };
+
       await db.write();
       return res.json(db.data.users[existingIndex]);
     }
 
+    // ✅ CREATE NEW USER
     const newUser = {
       ...req.body,
       id,
@@ -42,11 +54,32 @@ export const createUser = async (req, res) => {
       addresses: req.body.addresses || [],
       role: req.body.role || 'customer',
       status: req.body.status || 'active',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
+
     db.data.users.push(newUser);
+
+    // 🔥 AUTO CREATE PHARMACY FOR SELLER (AFTER USER CREATED)
+    if (newUser.role === 'seller') {
+      const existingPharmacy = db.data.pharmacies.find(
+        (p) => p.sellerId === id
+      );
+
+      if (!existingPharmacy) {
+        db.data.pharmacies.push({
+          id: `PH-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+          sellerId: id, // ✅ Firebase UID mapping
+          name: `${newUser.displayName || newUser.email || 'Seller'} Pharmacy`,
+          verificationStatus: 'pending',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
     await db.write();
+
     res.status(201).json(newUser);
+
   } catch (error) {
     res.status(500).json({ error: 'Failed to create user' });
   }
@@ -77,9 +110,17 @@ export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
     const db = await getDb();
+
     const originalLength = db.data.users.length;
-    db.data.users = db.data.users.filter((u) => (u.id || u.uid) !== id);
-    if (db.data.users.length === originalLength) return res.status(404).json({ error: 'User not found' });
+
+    db.data.users = db.data.users.filter(
+      (u) => (u.id || u.uid) !== id
+    );
+
+    if (db.data.users.length === originalLength) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     await db.write();
     res.json({ success: true });
   } catch (error) {

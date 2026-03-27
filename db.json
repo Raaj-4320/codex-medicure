@@ -1,65 +1,137 @@
 {
   "users": [
     {
+      "id": "admin-1",
       "uid": "admin-1",
       "email": "admin123@gmail.com",
       "displayName": "System Admin",
       "role": "admin",
+      "status": "active",
       "addresses": [],
-      "createdAt": "2026-03-25T08:07:02.000Z"
+      "createdAt": "2026-03-26T17:58:50.810Z"
     },
     {
+      "id": "seller-1",
       "uid": "seller-1",
       "email": "seller123@gmail.com",
       "displayName": "Main Seller",
       "role": "seller",
+      "status": "active",
       "addresses": [],
-      "createdAt": "2026-03-25T08:07:02.000Z"
+      "createdAt": "2026-03-26T17:58:50.810Z"
     },
     {
+      "id": "customer-1",
       "uid": "customer-1",
       "email": "customer1@gmail.com",
       "displayName": "Customer 1",
       "role": "customer",
-      "addresses": [
-        {
-          "id": "addr-1",
-          "type": "Home",
-          "addressLine": "123, Green Park",
-          "area": "Satellite",
-          "city": "Ahmedabad",
-          "state": "Gujarat",
-          "pincode": "380015",
-          "isDefault": true
-        }
-      ],
-      "createdAt": "2026-03-25T08:07:02.000Z"
+      "status": "active",
+      "addresses": [],
+      "createdAt": "2026-03-26T17:58:50.810Z"
     },
     {
+      "id": "delivery-1",
       "uid": "delivery-1",
       "email": "del1@gmail.com",
       "displayName": "John Delivery",
       "role": "delivery",
+      "status": "active",
       "addresses": [],
-      "createdAt": "2026-03-25T08:07:02.000Z"
+      "createdAt": "2026-03-26T17:58:50.810Z"
+    },
+    {
+      "id": "tT3FtnfHegMnKhqxxOi83RLkWyf2",
+      "uid": "tT3FtnfHegMnKhqxxOi83RLkWyf2",
+      "email": "work.raj01@gmail.com",
+      "displayName": "TEST SELLER",
+      "role": "seller",
+      "phoneNumber": "9023950250",
+      "photoURL": null,
+      "status": "active",
+      "addresses": [],
+      "createdAt": "2026-03-26T18:03:58.375Z",
+      "updatedAt": "2026-03-26T18:06:47.318Z"
+    },
+    {
+      "id": "admin-static",
+      "uid": "admin-static",
+      "email": "raj.golakiya0@gmail.com",
+      "displayName": "Admin",
+      "role": "admin",
+      "phoneNumber": "",
+      "photoURL": null,
+      "status": "active",
+      "addresses": [],
+      "createdAt": "2026-03-26T18:05:21.448Z"
+    },
+    {
+      "id": "JfoYi1IQrzYpWE8DJVr6f3AJ42b2",
+      "uid": "JfoYi1IQrzYpWE8DJVr6f3AJ42b2",
+      "email": "work.raj01@gmail.com",
+      "displayName": "Raj Golakiya",
+      "role": "seller",
+      "phoneNumber": "7894561230",
+      "photoURL": null,
+      "status": "active",
+      "addresses": [],
+      "createdAt": "2026-03-27T06:11:20.784Z",
+      "updatedAt": "2026-03-27T06:11:20.797Z"
     }
   ],
   "pharmacies": [
-    { 
-      "id": "pharmacy-1", 
-      "sellerId": "seller-1", 
-      "name": "City Health Pharmacy", 
+    {
+      "id": "pharmacy-1",
+      "sellerId": "seller-1",
+      "name": "City Health Pharmacy",
+      "description": "Trusted neighborhood pharmacy",
       "image": "https://picsum.photos/seed/pharm1/400/300",
-      "address": { "city": "Ahmedabad", "area": "Satellite", "pincode": "380015", "state": "Gujarat" },
+      "address": {
+        "city": "Ahmedabad",
+        "area": "Satellite",
+        "pincode": "380015",
+        "state": "Gujarat"
+      },
+      "contactNumber": "+91 9000000000",
+      "operatingHours": "8 AM - 10 PM",
+      "deliveryAvailable": true,
+      "pickupAvailable": true,
+      "minOrderValue": 100,
+      "deliveryFee": 40,
+      "rating": 4.5,
+      "reviewCount": 120,
       "verificationStatus": "verified",
-      "createdAt": "2025-03-25T08:07:02.000Z",
+      "createdAt": "2026-03-15T04:12:10.821Z",
       "email": "seller123@gmail.com",
       "verificationDetails": {
         "ownerName": "Main Seller",
         "licenseNumber": "GUJ/PHARM/12345",
         "licenseExpiry": "2027-12-31",
-        "documents": [{ "type": "Drug License", "url": "#" }, { "type": "GST Certificate", "url": "#" }]
+        "documents": [
+          {
+            "type": "Drug License",
+            "url": "#"
+          },
+          {
+            "type": "GST Certificate",
+            "url": "#"
+          }
+        ]
       }
+    },
+    {
+      "id": "PH-07CB9616",
+      "sellerId": "tT3FtnfHegMnKhqxxOi83RLkWyf2",
+      "name": "TEST SELLER Pharmacy",
+      "verificationStatus": "pending",
+      "createdAt": "2026-03-26T18:03:58.376Z"
+    },
+    {
+      "id": "PH-60DC7DE2",
+      "sellerId": "JfoYi1IQrzYpWE8DJVr6f3AJ42b2",
+      "name": "Raj Golakiya Pharmacy",
+      "verificationStatus": "pending",
+      "createdAt": "2026-03-27T06:11:20.785Z"
     }
   ],
   "medicines": [
@@ -75,7 +147,9 @@
       "schedule": "None",
       "isRestricted": false,
       "description": "Used for fever and mild to moderate pain.",
-      "image": "https://picsum.photos/seed/dolo/200/200"
+      "image": "https://picsum.photos/seed/dolo/200/200",
+      "status": "rejected",
+      "updatedAt": "2026-03-26T18:06:18.244Z"
     },
     {
       "id": "med-2",
@@ -89,30 +163,182 @@
       "schedule": "Schedule H",
       "isRestricted": false,
       "description": "Broad-spectrum antibiotic for bacterial infections.",
-      "image": "https://picsum.photos/seed/aug/200/200"
+      "image": "https://picsum.photos/seed/aug/200/200",
+      "status": "approved",
+      "updatedAt": "2026-03-26T18:06:27.822Z"
+    },
+    {
+      "id": "MED-0784C83A",
+      "name": "TEST MED",
+      "brandName": "TEST MED",
+      "genericName": "TEST GEN",
+      "category": "General",
+      "dosageForm": "Tablet",
+      "strength": "10mg",
+      "manufacturer": "DOLO",
+      "rxRequired": false,
+      "description": "",
+      "price": 300,
+      "stock": 20,
+      "pharmacyId": "PH-07CB9616",
+      "sellerId": "tT3FtnfHegMnKhqxxOi83RLkWyf2",
+      "status": "approved",
+      "createdAt": "2026-03-26T18:04:34.866Z",
+      "updatedAt": "2026-03-26T18:05:46.537Z"
     }
   ],
   "sellerMedicines": [
-    { "id": "inv-1", "pharmacyId": "pharmacy-1", "medicineMasterId": "med-1", "price": 30, "discountPrice": 28, "stock": 500, "isVisible": true, "isFeatured": true },
-    { "id": "inv-2", "pharmacyId": "pharmacy-1", "medicineMasterId": "med-2", "price": 150, "discountPrice": 140, "stock": 45, "isVisible": true, "isFeatured": false }
+    {
+      "id": "inv-1",
+      "pharmacyId": "pharmacy-1",
+      "name": "Dolo 650",
+      "medicineMasterId": "med-1",
+      "price": 30,
+      "discountPrice": 28,
+      "stock": 500,
+      "isVisible": true,
+      "isFeatured": true,
+      "createdAt": "2026-03-26T17:58:50.810Z",
+      "updatedAt": "2026-03-26T17:58:50.810Z"
+    },
+    {
+      "id": "inv-2",
+      "pharmacyId": "pharmacy-1",
+      "name": "Augmentin 625 Duo",
+      "medicineMasterId": "med-2",
+      "price": 150,
+      "discountPrice": 140,
+      "stock": 45,
+      "isVisible": true,
+      "isFeatured": false,
+      "createdAt": "2026-03-26T17:58:50.810Z",
+      "updatedAt": "2026-03-26T17:58:50.810Z"
+    }
   ],
   "orders": [
-    { "id": "order-1", "customerId": "customer-1", "pharmacyId": "pharmacy-1", "totalAmount": 1200, "status": "pending", "createdAt": "2026-03-24T08:07:02.000Z", "items": [{ "medicineId": "med-1", "quantity": 2, "price": 30 }] },
-    { "id": "order-2", "customerId": "customer-1", "pharmacyId": "pharmacy-1", "totalAmount": 850, "status": "delivered", "createdAt": "2026-03-23T08:07:02.000Z", "items": [{ "medicineId": "med-1", "quantity": 1, "price": 30 }] }
+    {
+      "id": "order-1",
+      "customerId": "customer-1",
+      "userId": "customer-1",
+      "pharmacyId": "pharmacy-1",
+      "items": [
+        {
+          "medicineId": "med-1",
+          "quantity": 2,
+          "price": 30
+        }
+      ],
+      "totalAmount": 1200,
+      "status": "pending",
+      "createdAt": "2026-03-25T17:58:50.821Z",
+      "updatedAt": "2026-03-26T17:58:50.810Z"
+    },
+    {
+      "id": "order-2",
+      "customerId": "customer-1",
+      "userId": "customer-1",
+      "pharmacyId": "pharmacy-1",
+      "items": [
+        {
+          "medicineId": "med-2",
+          "quantity": 1,
+          "price": 140
+        }
+      ],
+      "totalAmount": 850,
+      "status": "delivered",
+      "createdAt": "2026-03-24T17:58:50.821Z",
+      "updatedAt": "2026-03-26T17:58:50.810Z"
+    }
   ],
   "deliveryAssignments": [
-    { 
-      "id": "assign-1", 
-      "orderId": "order-1", 
-      "deliveryStaffId": "delivery-1", 
-      "status": "assigned", 
-      "assignedAt": "2026-03-25T08:07:02.000Z",
+    {
+      "id": "assign-1",
+      "orderId": "order-1",
+      "deliveryStaffId": "delivery-1",
+      "status": "assigned",
+      "assignedAt": "2026-03-26T17:58:50.810Z",
       "pickupOtp": "4561",
       "deliveryOtp": "7892"
     }
   ],
   "payments": [],
   "notifications": [
-    { "id": "not-1", "userId": "seller-1", "title": "New Order Received", "message": "You have a new order #order-4 from Customer 1", "type": "order", "isRead": false, "createdAt": "2026-03-25T08:07:02.000Z" }
+    {
+      "id": "not-1",
+      "userId": "seller-1",
+      "title": "New Order Received",
+      "message": "You have a new order #order-1 from Customer 1",
+      "type": "order",
+      "isRead": false,
+      "createdAt": "2026-03-26T17:58:50.810Z"
+    }
+  ],
+  "prescriptions": [
+    {
+      "id": "RX-001",
+      "userId": "customer-1",
+      "pharmacyId": "pharmacy-1",
+      "status": "pending",
+      "imageUrl": "https://picsum.photos/seed/rx/600/400",
+      "createdAt": "2026-03-26T17:58:50.810Z"
+    }
+  ],
+  "returns": [
+    {
+      "id": "RET-001",
+      "orderId": "order-2",
+      "customerId": "customer-1",
+      "pharmacyId": "pharmacy-1",
+      "reason": "wrong_item",
+      "description": "Wrong medicine delivered",
+      "status": "pending",
+      "items": [
+        {
+          "medicineName": "Augmentin 625 Duo",
+          "quantity": 1
+        }
+      ],
+      "createdAt": "2026-03-26T17:58:50.810Z"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "TKT-001",
+      "userId": "seller-1",
+      "subject": "Payout delay",
+      "description": "Settlement pending from last week",
+      "category": "payout",
+      "status": "open",
+      "priority": "medium",
+      "createdAt": "2026-03-26T17:58:50.810Z",
+      "updatedAt": "2026-03-26T17:58:50.810Z"
+    }
+  ],
+  "complianceDocuments": [
+    {
+      "id": "CMP-001",
+      "sellerId": "seller-1",
+      "type": "license",
+      "documentUrl": "https://example.com/license.pdf",
+      "status": "pending",
+      "createdAt": "2026-03-26T17:58:50.810Z",
+      "updatedAt": "2026-03-26T17:58:50.810Z"
+    }
+  ],
+  "payouts": [
+    {
+      "id": "PYO-001",
+      "sellerId": "seller-1",
+      "pharmacyId": "pharmacy-1",
+      "amount": 10000,
+      "commission": 1000,
+      "gst": 1800,
+      "netAmount": 7200,
+      "status": "pending",
+      "periodStart": "2026-03-01",
+      "periodEnd": "2026-03-07",
+      "createdAt": "2026-03-26T17:58:50.810Z"
+    }
   ]
 }
