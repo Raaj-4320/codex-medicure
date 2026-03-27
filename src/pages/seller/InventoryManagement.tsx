@@ -28,7 +28,7 @@ const InventoryManagement: React.FC = () => {
     if (!profile) return;
     try {
       setLoading(true);
-      const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+      const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
       if (pharmacies.length === 0) {
         setErrorMessage('No pharmacy found for this seller account.');
         setMedicines([]);
