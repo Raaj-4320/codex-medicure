@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle, Loader2, Plus, Search, XCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import AddMedicineModal, { AddMedicineValues } from '../../components/medicine/AddMedicineModal';
+import { logUI } from '../../utils/uiLogger';
+import { checkExpectations, validateDataBinding } from '../../utils/flowLogger';
+import { logDataFlow } from '../../utils/dataLogger';
 
 const MedicineMasterCatalog: React.FC = () => {
   const [medicines, setMedicines] = useState<any[]>([]);
@@ -17,6 +20,21 @@ const MedicineMasterCatalog: React.FC = () => {
     try {
       const data = await api.getMedicines({ includeAll: 'true' });
       setMedicines(data);
+      checkExpectations({
+        page: 'AdminCatalog',
+        expected: ['medicine_master'],
+        result: { medicine_master: data },
+      });
+      logDataFlow('ADMIN_MEDICINE_MASTER', {
+        source: 'FIRESTORE',
+        requested: ['medicine_master'],
+        received: data,
+        rendered: data.length > 0,
+        placeholder: data.length === 0,
+        requiredFields: ['id', 'brandName'],
+        route: '/admin/medicine-master',
+        filters: { includeAll: true, search: search || '' },
+      });
     } catch (err: any) {
       setError(err?.message || 'Failed to load medicines');
     } finally {
@@ -29,10 +47,24 @@ const MedicineMasterCatalog: React.FC = () => {
   }, []);
 
   const createMedicine = async (values: AddMedicineValues) => {
-    const pharmacies = await api.getPharmacies();
-    const pharmacyId = pharmacies[0]?.id;
-    if (!pharmacyId) throw new Error('No pharmacy available to associate medicine');
-    await api.createMedicine({ ...values, pharmacyId, status: 'approved' });
+    logUI('ACTION', {
+      component: 'AdminCatalog',
+      action: 'Add Medicine',
+      expected: 'should create medicine master entry',
+      status: 'working',
+    });
+    await api.createMedicine({
+      brandName: values.name,
+      genericName: values.genericName,
+      category: values.category,
+      dosageForm: values.dosageForm,
+      strength: values.strength,
+      manufacturer: values.manufacturer,
+      description: values.description,
+      status: 'approved',
+      rxRequired: false,
+      schedule: 'None',
+    });
     await loadMedicines();
   };
 
@@ -40,10 +72,23 @@ const MedicineMasterCatalog: React.FC = () => {
     setUpdatingId(id);
     setError('');
     try {
+      logUI('ACTION', {
+        component: 'AdminCatalog',
+        action: status === 'approved' ? 'Approve Medicine' : 'Reject Medicine',
+        expected: 'should call API + update UI',
+        status: 'working',
+      });
       await api.updateMedicine(id, { status });
       await loadMedicines();
     } catch (err: any) {
       setError(err?.message || 'Failed to update medicine status');
+      logUI('ACTION', {
+        component: 'AdminCatalog',
+        action: status === 'approved' ? 'Approve Medicine' : 'Reject Medicine',
+        expected: 'should call API + update UI',
+        status: 'not_working',
+        reason: err?.message || 'status update failed',
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -52,6 +97,15 @@ const MedicineMasterCatalog: React.FC = () => {
   const filtered = medicines.filter((m) =>
     `${m.name || m.brandName || ''} ${m.genericName || ''}`.toLowerCase().includes(search.toLowerCase())
   );
+  if (search.trim() === '') {
+    validateDataBinding({
+      area: 'AdminCatalog',
+      dataCount: medicines.length,
+      renderedCount: filtered.length,
+      expectedKeys: ['id', 'brandName', 'genericName'],
+      sample: medicines[0],
+    });
+  }
 
   return (
     <div className="space-y-6">

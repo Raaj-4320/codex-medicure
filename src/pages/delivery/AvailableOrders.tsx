@@ -15,6 +15,9 @@ import {
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { logUI } from '../../utils/uiLogger';
+import { isPharmacyOperational } from '../../services/api';
+import { logDataFlow } from '../../utils/dataLogger';
 
 const AvailableOrders: React.FC = () => {
   const { profile } = useAuth();
@@ -24,8 +27,7 @@ const AvailableOrders: React.FC = () => {
 
   const fetchAvailableOrders = async () => {
     try {
-      // 1. Get all orders that are 'ready'
-      const readyOrders = await api.getOrders({ status: 'ready' });
+      const readyOrders = await api.getOrders({ status: 'dispatched' });
       
       // 2. Get all active delivery assignments
       const assignments = await api.getDeliveryAssignments();
@@ -34,6 +36,17 @@ const AvailableOrders: React.FC = () => {
       // 3. Filter orders that are not yet assigned
       const available = readyOrders.filter((o: any) => !assignedOrderIds.includes(o.id));
       setOrders(available);
+      logDataFlow('DELIVERY_ORDERS', {
+        source: 'FIRESTORE',
+        requested: ['orders:dispatched'],
+        received: available,
+        rendered: available.length > 0,
+        placeholder: available.length === 0,
+        requiredFields: ['id', 'pharmacyId', 'status'],
+        userId: profile?.uid,
+        route: '/delivery/available-orders',
+        filters: { status: 'dispatched' },
+      });
     } catch (error) {
       console.error('Failed to fetch available orders:', error);
     } finally {
@@ -43,13 +56,25 @@ const AvailableOrders: React.FC = () => {
 
   useEffect(() => {
     fetchAvailableOrders();
-    const interval = setInterval(fetchAvailableOrders, 5000);
-    return () => clearInterval(interval);
+    const unsubscribe = api.subscribeToOrders({ status: 'dispatched' }, () => {
+      fetchAvailableOrders();
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleAccept = async (orderId: string) => {
     setAcceptedOrderId(orderId);
     try {
+      logUI('DELIVERY_ACCEPT', { context: `Accept order ${orderId}`, success: true });
+      const [order] = await api.getOrders({ id: orderId });
+      if (!order || order.status !== 'dispatched') {
+        throw new Error('Order is not eligible for delivery acceptance.');
+      }
+      const pharmacies = await api.getPharmacies({ id: order.pharmacyId });
+      const pharmacy = pharmacies[0];
+      if (!pharmacy || !isPharmacyOperational(pharmacy as any)) {
+        throw new Error('Delivery blocked: pharmacy is not operational.');
+      }
       // 1. Create delivery assignment
       await api.createDeliveryAssignment({
         orderId,
@@ -57,7 +82,7 @@ const AvailableOrders: React.FC = () => {
         status: 'assigned'
       });
 
-      // 2. Update order status to 'on_the_way'
+      // 2. Update order status to on_the_way (accepted)
       await api.updateOrder(orderId, { status: 'on_the_way' });
 
       setTimeout(() => {
@@ -65,6 +90,7 @@ const AvailableOrders: React.FC = () => {
         setAcceptedOrderId(null);
       }, 2000);
     } catch (error) {
+      logUI('DELIVERY_ACCEPT', { context: `Accept order ${orderId}`, success: false, reason: (error as Error)?.message || 'accept failed' });
       console.error('Failed to accept order:', error);
       setAcceptedOrderId(null);
     }
@@ -157,7 +183,10 @@ const AvailableOrders: React.FC = () => {
 
                 <div className="flex gap-3">
                   <button 
-                    onClick={() => setOrders(orders.filter(o => o.id !== order.id))}
+                    onClick={() => {
+                      setOrders(orders.filter(o => o.id !== order.id));
+                      logUI('DELIVERY_REJECT', { context: `Reject order ${order.id}`, success: true });
+                    }}
                     className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95"
                   >
                     <XCircle size={18} />

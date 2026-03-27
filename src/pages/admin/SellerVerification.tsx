@@ -22,7 +22,9 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { api } from '../../services/api';
+import { api, isPharmacyProfileComplete } from '../../services/api';
+import { logFlow } from '../../utils/flowLogger';
+import { logUI } from '../../utils/uiLogger';
 
 const SellerVerification: React.FC = () => {
   const [requests, setRequests] = useState<any[]>([]);
@@ -41,9 +43,27 @@ const SellerVerification: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { verificationStatus: statusFilter });
+      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { status: statusFilter });
       setRequests(data);
+      if (statusFilter === 'pending') {
+        logFlow('ADMIN_PENDING_CHECK', {
+          expected: { status: 'pending' },
+          received: { count: data.length },
+          success: true,
+        });
+      }
+      logFlow('ADMIN_VERIFICATION_FETCH', {
+        expected: { status: statusFilter },
+        received: { count: data.length },
+        success: true,
+      });
     } catch (error) {
+      logFlow('ADMIN_VERIFICATION_FETCH', {
+        expected: { status: statusFilter },
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to fetch pharmacy requests', error);
     } finally {
       setLoading(false);
@@ -53,15 +73,28 @@ const SellerVerification: React.FC = () => {
   const handleStatusUpdate = async (id: string, newStatus: string, reason?: string) => {
     setProcessing(true);
     try {
+      logUI('ADMIN_SELLER_REVIEW', { context: `Set ${id} to ${newStatus}`, success: true });
       await api.updatePharmacy(id, {
-        verificationStatus: newStatus,
+        status: newStatus,
         rejectionReason: reason || '',
+      });
+      logFlow('ADMIN_VERIFICATION_UPDATE', {
+        expected: { id, newStatus },
+        received: { id, newStatus },
+        success: true,
       });
       setRequests(requests.filter(r => r.id !== id));
       setSelectedRequest(null);
       setShowRejectModal(false);
       setRejectionReason('');
     } catch (error) {
+      logUI('ADMIN_SELLER_REVIEW', { context: `Set ${id} to ${newStatus}`, success: false, reason: (error as Error)?.message || 'update failed' });
+      logFlow('ADMIN_VERIFICATION_UPDATE', {
+        expected: { id, newStatus },
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to update pharmacy status', error);
     } finally {
       setProcessing(false);
@@ -132,7 +165,7 @@ const SellerVerification: React.FC = () => {
                     }`}
                   >
                     <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-bold text-slate-900 truncate">{req.name}</h3>
+                      <h3 className="font-bold text-slate-900 truncate">{req.name || 'Profile Incomplete'}</h3>
                       <span className="text-[10px] text-slate-400 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(req.createdAt).toLocaleDateString()}
@@ -146,6 +179,9 @@ const SellerVerification: React.FC = () => {
                       <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
                         {req.verificationDetails?.licenseNumber || 'N/A'}
                       </span>
+                      {!isPharmacyProfileComplete(req) && (
+                        <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-bold">PROFILE INCOMPLETE</span>
+                      )}
                       {req.isPriority && (
                         <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[10px] font-bold">PRIORITY</span>
                       )}

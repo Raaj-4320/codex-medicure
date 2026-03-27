@@ -14,7 +14,9 @@ import {
 import { useAuth } from '../../AuthContext';
 import { useLocation } from '../../LocationContext';
 import { Order, Pharmacy } from '../../types';
-import { MOCK_ORDERS, MOCK_PHARMACIES } from '../../staticData';
+import { MOCK_ORDERS } from '../../staticData';
+import { logUI } from '../../utils/uiLogger';
+import { api } from '../../services/api';
 
 const CustomerDashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -24,16 +26,17 @@ const CustomerDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = () => {
+    const fetchData = async () => {
       if (!profile) return;
       
       // Use mock data
       setRecentOrders(MOCK_ORDERS.filter(o => o.customerId === profile.uid).slice(0, 3) as any);
-      setNearbyPharmacies(MOCK_PHARMACIES.slice(0, 4) as any);
+      const customerVisiblePharmacies = await api.getPharmaciesForCustomer();
+      setNearbyPharmacies(customerVisiblePharmacies.slice(0, 4) as any);
       setLoading(false);
     };
 
-    fetchData();
+    fetchData().catch(() => setLoading(false));
   }, [profile, location]);
 
   return (
@@ -99,9 +102,9 @@ const CustomerDashboard: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {nearbyPharmacies.map(pharmacy => (
                 <Link key={pharmacy.id} to={`/pharmacy/${pharmacy.id}`} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-200 transition-all flex items-center gap-4">
-                  <img src={pharmacy.image} alt="" className="w-16 h-16 rounded-xl object-cover" />
+                  <img src={pharmacy.image || undefined} alt="" className="w-16 h-16 rounded-xl object-cover" />
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">{pharmacy.name}</h4>
+                    <h4 className="font-bold text-slate-900 text-sm">{pharmacy.name || 'Profile Incomplete'}</h4>
                     <p className="text-xs text-slate-500">{pharmacy.address.area}</p>
                   </div>
                 </Link>
@@ -123,7 +126,18 @@ const CustomerDashboard: React.FC = () => {
                     <p className="text-xs text-slate-500">{location.city}, {location.pincode}</p>
                   </div>
                 </div>
-                <button className="w-full py-2 text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                <button
+                  onClick={() =>
+                    logUI('ACTION', {
+                      component: 'CustomerDashboard',
+                      action: 'Change Location',
+                      expected: 'should open location selector',
+                      status: 'partial',
+                      reason: 'Location selector route not implemented yet',
+                    })
+                  }
+                  className="w-full py-2 text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
                   Change Location
                 </button>
               </div>
