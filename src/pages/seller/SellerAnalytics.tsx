@@ -16,7 +16,7 @@ const SellerAnalytics: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const analytics = await api.getAnalytics({ sellerId: profile.uid });
+        const analytics = await api.getAnalytics({ ownerId: profile.uid });
         setData(analytics);
       } catch (err: any) {
         setError(err?.message || 'Failed to load analytics');

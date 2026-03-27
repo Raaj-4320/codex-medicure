@@ -23,7 +23,7 @@ export default function SellerOrders() {
 
   const fetchOrders = async () => {
     try {
-      const pharmacies = await api.getPharmacies({ sellerId: profile?.uid });
+      const pharmacies = await api.getPharmacies({ ownerId: profile?.uid });
       const myPharmacy = pharmacies[0];
       if (!myPharmacy) {
         setHasPharmacy(false);

@@ -43,7 +43,7 @@ const SellerPayouts: React.FC = () => {
       if (!profile) return;
       try {
         setLoading(true);
-        const data = await api.getPayouts({ sellerId: profile.uid });
+        const data = await api.getPayouts({ ownerId: profile.uid });
         setPayouts(data as SellerPayout[]);
       } catch (error) {
         console.error('Failed to load payouts', error);

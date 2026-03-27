@@ -36,7 +36,7 @@ import { Order, Prescription, Notification } from '../../types';
 import { api } from '../../services/api';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import AddMedicineModal, { AddMedicineValues } from '../../components/medicine/AddMedicineModal';
+import { logFlow } from '../../utils/flowLogger';
 
 const SellerDashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -52,9 +52,13 @@ const SellerDashboard: React.FC = () => {
   const [pendingPrescriptions, setPendingPrescriptions] = useState<Prescription[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addMedicineError, setAddMedicineError] = useState('');
-  const [addMedicineSuccess, setAddMedicineSuccess] = useState('');
+  const [hasPharmacy, setHasPharmacy] = useState(true);
+  const [pharmacyStatus, setPharmacyStatus] = useState<'pending' | 'verified' | 'rejected'>('pending');
+  const [onboardingName, setOnboardingName] = useState('');
+  const [onboardingPhone, setOnboardingPhone] = useState('');
+  const [onboardingSubmitting, setOnboardingSubmitting] = useState(false);
+  const [chartData, setChartData] = useState<{ name: string; sales: number }[]>([]);
+  const [bestSellers, setBestSellers] = useState<{ name: string; sales: number; color: string }[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,9 +66,16 @@ const SellerDashboard: React.FC = () => {
       
       try {
         setLoading(true);
-        const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+        const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
         const myPharmacy = pharmacies[0];
         if (!myPharmacy) {
+          logFlow('DASHBOARD_LOAD', {
+            expected: ['seller pharmacy exists'],
+            received: { userId: profile.uid, hasPharmacy: false },
+            success: false,
+            error: 'No pharmacy found',
+          });
+          setHasPharmacy(false);
           setStats({
             todayOrders: 0,
             pendingPrescriptions: 0,
@@ -78,6 +89,8 @@ const SellerDashboard: React.FC = () => {
           setNotifications([]);
           return;
         }
+        setHasPharmacy(true);
+        setPharmacyStatus((myPharmacy.status || myPharmacy.verificationStatus || 'pending') as 'pending' | 'verified' | 'rejected');
 
         const [sellerOrders, inventory, prescriptions, sellerNotifications] = await Promise.all([
           api.getOrders({ pharmacyId: myPharmacy.id }),
@@ -85,6 +98,16 @@ const SellerDashboard: React.FC = () => {
           api.getPrescriptions({ pharmacyId: myPharmacy.id }),
           api.getNotifications({ userId: profile.uid }),
         ]);
+        logFlow('DASHBOARD_LOAD', {
+          expected: ['orders', 'inventory', 'prescriptions', 'notifications'],
+          received: {
+            orders: sellerOrders.length,
+            inventory: inventory.length,
+            prescriptions: prescriptions.length,
+            notifications: sellerNotifications.length,
+          },
+          success: true,
+        });
         
         const totalRevenue = sellerOrders.reduce((acc: number, o: any) => acc + o.totalAmount, 0);
         const lowStockCount = inventory.filter((i: any) => Number(i.stock) < 20).length;
@@ -102,6 +125,24 @@ const SellerDashboard: React.FC = () => {
         setRecentOrders(sellerOrders.slice(0, 5));
         setPendingPrescriptions(prescriptions.filter((p: any) => p.status === 'pending'));
         setNotifications(sellerNotifications);
+        const colorPalette = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
+        setBestSellers(
+          inventory
+            .filter((item: any) => item?.masterData?.brandName)
+            .sort((a: any, b: any) => Number(b.stock || 0) - Number(a.stock || 0))
+            .slice(0, 4)
+            .map((item: any, idx: number) => ({
+              name: item.masterData.brandName,
+              sales: Number(item.stock || 0),
+              color: colorPalette[idx % colorPalette.length],
+            })),
+        );
+        const byDay = new Map<string, number>();
+        sellerOrders.forEach((order: any) => {
+          const day = new Date(order.createdAt).toLocaleDateString('en-US', { weekday: 'short' });
+          byDay.set(day, (byDay.get(day) || 0) + Number(order.totalAmount || 0));
+        });
+        setChartData(Array.from(byDay.entries()).map(([name, sales]) => ({ name, sales })));
       } catch (error) {
         console.error('Failed to fetch seller data:', error);
       } finally {
@@ -112,41 +153,69 @@ const SellerDashboard: React.FC = () => {
     fetchData();
   }, [profile]);
 
-
-  const handleAddMedicine = async (values: AddMedicineValues) => {
-    if (!profile?.uid) throw new Error('Seller profile not found');
-    const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
-    const pharmacy = pharmacies[0];
-    if (!pharmacy) throw new Error('No pharmacy found');
-
-    await api.createMedicine({
-      ...values,
-      sellerId: profile.uid,
-      pharmacyId: pharmacy.id,
-      status: 'pending',
-    });
-
-    setAddMedicineSuccess('Medicine submitted for admin approval.');
-  };
-
-  const chartData = [
-    { name: 'Mon', sales: 12000 },
-    { name: 'Tue', sales: 18000 },
-    { name: 'Wed', sales: 15000 },
-    { name: 'Thu', sales: 22000 },
-    { name: 'Fri', sales: 28000 },
-    { name: 'Sat', sales: 32000 },
-    { name: 'Sun', sales: 25000 },
-  ];
-
-  const bestSellers = [
-    { name: 'Dolo 650', sales: 450, color: '#10b981' },
-    { name: 'Pan 40', sales: 320, color: '#3b82f6' },
-    { name: 'Telma 40', sales: 280, color: '#f59e0b' },
-    { name: 'Augmentin', sales: 210, color: '#ef4444' },
-  ];
-
   if (loading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>;
+  if (!hasPharmacy) {
+    const createOnboardingPharmacy = async () => {
+      if (!profile?.uid) return;
+      setOnboardingSubmitting(true);
+      try {
+        await api.createPharmacy({
+          id: profile.uid,
+          ownerId: profile.uid,
+          sellerId: profile.uid,
+          name: onboardingName || `${profile.displayName || 'Seller'} Pharmacy`,
+          contactNumber: onboardingPhone,
+          email: profile.email,
+          status: 'pending',
+          verificationStatus: 'pending',
+          address: {},
+          description: '',
+          operatingHours: '09:00-21:00',
+        });
+        window.location.reload();
+      } finally {
+        setOnboardingSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Complete your pharmacy onboarding</h2>
+          <p className="text-slate-600 mb-6">Your seller account is active, but your pharmacy profile is missing. Submit basic details to create it instantly.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <input value={onboardingName} onChange={(e) => setOnboardingName(e.target.value)} placeholder="Pharmacy Name" className="px-3 py-2 rounded-xl border border-slate-200" />
+            <input value={onboardingPhone} onChange={(e) => setOnboardingPhone(e.target.value)} placeholder="Contact Number" className="px-3 py-2 rounded-xl border border-slate-200" />
+          </div>
+          <div className="flex items-center gap-3">
+            <button disabled={onboardingSubmitting} onClick={createOnboardingPharmacy} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60">
+              {onboardingSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+              Create Pharmacy
+            </button>
+            <Link to="/seller/profile" className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition-colors">
+              Open Profile
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (pharmacyStatus === 'rejected') {
+    return (
+      <div className="bg-white rounded-2xl border border-red-200 p-8">
+        <h2 className="text-xl font-bold text-red-700 mb-2">Pharmacy verification rejected</h2>
+        <p className="text-slate-600">Your pharmacy profile was rejected. Please update details in profile and resubmit for review.</p>
+      </div>
+    );
+  }
+  if (pharmacyStatus === 'pending') {
+    return (
+      <div className="bg-white rounded-2xl border border-amber-200 p-8">
+        <h2 className="text-xl font-bold text-amber-700 mb-2">Verification pending</h2>
+        <p className="text-slate-600">Your pharmacy is under admin review. Dashboard actions are available after verification.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -160,15 +229,12 @@ const SellerDashboard: React.FC = () => {
             <RefreshCw className="w-4 h-4" />
             Sync Inventory
           </button>
-          <button onClick={() => { setAddMedicineError(''); setAddMedicineSuccess(''); setShowAddModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 rounded-xl text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200">
+          <Link to="/seller/inventory" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 rounded-xl text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200">
             <Plus className="w-4 h-4" />
-            Add Medicine
-          </button>
+            Manage Inventory
+          </Link>
         </div>
       </div>
-
-      {addMedicineError && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium">{addMedicineError}</div>}
-      {addMedicineSuccess && <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium">{addMedicineSuccess}</div>}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -212,6 +278,9 @@ const SellerDashboard: React.FC = () => {
               </div>
             </div>
             <div className="h-[300px]">
+              {chartData.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-slate-500 text-sm">No revenue data available yet.</div>
+              ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
@@ -229,6 +298,7 @@ const SellerDashboard: React.FC = () => {
                   <Area type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
                 </AreaChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -330,6 +400,9 @@ const SellerDashboard: React.FC = () => {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="font-bold text-slate-900 mb-6">Best Sellers</h3>
             <div className="h-[200px]">
+              {bestSellers.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-slate-500 text-sm">No top medicines data available yet.</div>
+              ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={bestSellers} layout="vertical" margin={{ left: -20 }}>
                   <XAxis type="number" hide />
@@ -345,6 +418,7 @@ const SellerDashboard: React.FC = () => {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -369,21 +443,6 @@ const SellerDashboard: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <AddMedicineModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSubmit={async (values) => {
-          try {
-            await handleAddMedicine(values);
-            setShowAddModal(false);
-          } catch (error: any) {
-            setAddMedicineError(error?.message || 'Failed to add medicine');
-            throw error;
-          }
-        }}
-        role="seller"
-      />
     </div>
   );
 };
