@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../../services/api';
+import { logFlow } from '../../utils/flowLogger';
 
 const SellerVerification: React.FC = () => {
   const [requests, setRequests] = useState<any[]>([]);
@@ -41,9 +42,20 @@ const SellerVerification: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { verificationStatus: statusFilter });
+      const data = await api.getPharmacies(statusFilter === 'all' ? {} : { status: statusFilter });
       setRequests(data);
+      logFlow('ADMIN_VERIFICATION_FETCH', {
+        expected: { status: statusFilter },
+        received: { count: data.length },
+        success: true,
+      });
     } catch (error) {
+      logFlow('ADMIN_VERIFICATION_FETCH', {
+        expected: { status: statusFilter },
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to fetch pharmacy requests', error);
     } finally {
       setLoading(false);
@@ -54,14 +66,25 @@ const SellerVerification: React.FC = () => {
     setProcessing(true);
     try {
       await api.updatePharmacy(id, {
-        verificationStatus: newStatus,
+        status: newStatus,
         rejectionReason: reason || '',
+      });
+      logFlow('ADMIN_VERIFICATION_UPDATE', {
+        expected: { id, newStatus },
+        received: { id, newStatus },
+        success: true,
       });
       setRequests(requests.filter(r => r.id !== id));
       setSelectedRequest(null);
       setShowRejectModal(false);
       setRejectionReason('');
     } catch (error) {
+      logFlow('ADMIN_VERIFICATION_UPDATE', {
+        expected: { id, newStatus },
+        received: null,
+        success: false,
+        error,
+      });
       console.error('Failed to update pharmacy status', error);
     } finally {
       setProcessing(false);
