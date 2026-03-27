@@ -100,6 +100,7 @@ export interface UserProfile {
 export interface Pharmacy {
   id: string;
   sellerId: string;
+  ownerId?: string;
   name: string;
   description: string;
   address: Partial<Address>;
@@ -107,6 +108,7 @@ export interface Pharmacy {
   email: string;
   operatingHours: string;
   verificationStatus: 'pending' | 'verified' | 'rejected';
+  status?: 'pending' | 'verified' | 'rejected';
   deliveryAvailable: boolean;
   pickupAvailable: boolean;
   minOrderValue: number;
@@ -128,6 +130,7 @@ export interface ServiceArea {
 
 export interface SellerMedicine {
   id: string;
+  traceId?: string;
   pharmacyId: string;
   medicineMasterId: string;
   price: number;
@@ -170,6 +173,7 @@ export type OrderStatus =
 
 export interface Order {
   id: string;
+  traceId?: string;
   customerId: string;
   pharmacyId: string;
   status: OrderStatus;
@@ -207,6 +211,7 @@ export interface Prescription {
 
 export interface DeliveryAssignment {
   id: string;
+  traceId?: string;
   orderId: string;
   deliveryStaffId: string;
   status: 'assigned' | 'picked_up' | 'delivered' | 'failed';
@@ -264,7 +269,9 @@ export interface ChatMessage {
 
 export interface Notification {
   id: string;
+  traceId?: string;
   userId: string;
+  orderId?: string;
   title: string;
   message: string;
   type: 'order' | 'stock' | 'system' | 'prescription' | 'payout' | 'compliance';

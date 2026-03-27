@@ -47,9 +47,9 @@ const DeliveryDashboard: React.FC = () => {
         const active = myAssignments.find((a: any) => a.status !== 'delivered');
         setActiveAssignment(active);
 
-        // Fetch available orders (ready for pickup)
+        // Fetch available orders (dispatched by seller)
         const orders = await api.getOrders();
-        const readyOrders = orders.filter((o: any) => o.status === 'ready_for_pickup');
+        const readyOrders = orders.filter((o: any) => o.status === 'dispatched');
         setAvailableOrders(readyOrders.slice(0, 2));
 
         setStats({

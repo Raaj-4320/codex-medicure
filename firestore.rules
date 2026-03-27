@@ -1,13 +1,79 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-    // WARNING: Authentication has been removed. 
-    // These rules allow public access for development purposes.
-    // In a production app, you should implement proper authorization.
+    function userRole() {
+      return isAuthenticated()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
 
-    match /{document=**} {
-      allow read, write: if true;
+    function isAdmin() {
+      return userRole() == 'admin';
+    }
+
+    function isCustomer() {
+      return userRole() == 'customer';
+    }
+
+    function isSeller() {
+      return userRole() == 'seller';
+    }
+
+    function isDelivery() {
+      return userRole() == 'delivery';
+    }
+
+    function isKnownRole() {
+      return userRole() in ['admin', 'seller', 'customer', 'delivery'];
+    }
+
+    match /orders/{orderId} {
+      allow read: if isKnownRole() && (
+        isAdmin()
+        || (isCustomer() && resource.data.customerId == request.auth.uid)
+        || (isSeller() && get(/databases/$(database)/documents/pharmacies/$(request.auth.uid)).data.id == resource.data.pharmacyId)
+        || (isDelivery() && resource.data.status in ['dispatched', 'on_the_way', 'delivered'])
+      );
+      allow create: if isKnownRole() && isCustomer() && request.resource.data.customerId == request.auth.uid;
+      allow update, delete: if isKnownRole() && (isAdmin() || isSeller() || isDelivery());
+    }
+
+    match /pharmacies/{pharmacyId} {
+      allow read: if resource.data.status == 'verified' || resource.data.verificationStatus == 'verified';
+      allow write: if isKnownRole() && (isAdmin() || (isSeller() && request.auth.uid == pharmacyId));
+    }
+
+    match /inventory/{inventoryId} {
+      allow read: if isKnownRole();
+      allow create, update, delete: if isKnownRole() && (isAdmin() || isSeller());
+    }
+
+    match /deliveryAssignments/{assignmentId} {
+      allow read, write: if isKnownRole() && (
+        isAdmin()
+        || (isDelivery() && (resource.data.deliveryStaffId == request.auth.uid || request.resource.data.deliveryStaffId == request.auth.uid))
+      );
+    }
+
+    match /notifications/{notificationId} {
+      allow read, write: if isKnownRole() && (
+        isAdmin()
+        || (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    match /analytics/{analyticsId} {
+      allow read: if isKnownRole() && (isAdmin() || isSeller());
+      allow write: if isKnownRole() && isAdmin();
+    }
+
+    match /medicine_master/{medicineId} {
+      allow read: if true;
+      allow write: if isKnownRole() && isAdmin();
     }
   }
 }

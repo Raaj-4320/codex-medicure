@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 
 export type AddMedicineValues = {
+  medicineMasterId?: string;
   name: string;
   genericName: string;
   category: string;
@@ -19,9 +20,11 @@ type Props = {
   onSubmit: (values: AddMedicineValues) => Promise<void>;
   defaultValues?: Partial<AddMedicineValues>;
   role: 'admin' | 'seller';
+  medicineOptions?: Array<{ id: string; brandName: string; genericName?: string }>;
 };
 
 const defaultForm: AddMedicineValues = {
+  medicineMasterId: '',
   name: '',
   genericName: '',
   category: 'General',
@@ -33,7 +36,7 @@ const defaultForm: AddMedicineValues = {
   stock: 0,
 };
 
-const AddMedicineModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, defaultValues, role }) => {
+const AddMedicineModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, defaultValues, role, medicineOptions = [] }) => {
   const [form, setForm] = useState<AddMedicineValues>(defaultForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -51,6 +54,10 @@ const AddMedicineModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, defaultV
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (role === 'seller' && !form.medicineMasterId) {
+      setError('Please select a medicine before submitting inventory.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -74,8 +81,25 @@ const AddMedicineModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, defaultV
 
         <form onSubmit={submit} className="p-6 space-y-4">
           {error && <div className="p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium">{error}</div>}
+          {role === 'seller' && (
+            <Field label="Medicine">
+              <select
+                required
+                value={form.medicineMasterId || ''}
+                onChange={(e) => update('medicineMasterId', e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200"
+              >
+                <option value="">Select medicine</option>
+                {medicineOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.brandName} {option.genericName ? `(${option.genericName})` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Medicine Name"><input required value={form.name} onChange={(e) => update('name', e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200" /></Field>
+            <Field label="Medicine Name"><input required={role === 'admin'} value={form.name} onChange={(e) => update('name', e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200" disabled={role === 'seller'} /></Field>
             <Field label="Generic Name"><input value={form.genericName} onChange={(e) => update('genericName', e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200" /></Field>
             <Field label="Category"><input value={form.category} onChange={(e) => update('category', e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200" /></Field>
             <Field label="Type"><input value={form.dosageForm} onChange={(e) => update('dosageForm', e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200" /></Field>
@@ -89,7 +113,7 @@ const AddMedicineModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, defaultV
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600">Cancel</button>
-            <button disabled={submitting} className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-bold disabled:opacity-60 inline-flex items-center gap-2">
+            <button disabled={submitting || (role === 'seller' && !form.medicineMasterId)} className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-bold disabled:opacity-60 inline-flex items-center gap-2">
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               Save
             </button>

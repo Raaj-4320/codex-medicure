@@ -8,8 +8,9 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { UserProfile } from './types';
-import { auth, db } from './firebase';
+import { auth, db, firebaseConfig } from './firebase';
 import { cleanFirestoreData } from './utils/cleanFirestoreData';
+import { logFlow, validateRequiredFields } from './utils/flowLogger';
 
 interface MockUser {
   uid: string;
@@ -58,31 +59,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.error(context, error);
   };
 
-  const syncBackendUser = async (profileData: {
+  const ensureSellerPharmacy = async (seller: {
     uid: string;
-    email: string;
     displayName: string;
-    role: string;
+    email: string;
     phoneNumber?: string;
-    photoURL?: string | null;
   }) => {
     try {
-      await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: profileData.uid,
-          uid: profileData.uid,
-          email: profileData.email,
-          displayName: profileData.displayName,
-          role: profileData.role,
-          phoneNumber: profileData.phoneNumber || '',
-          photoURL: profileData.photoURL || null,
-          status: 'active',
+      const pharmacyRef = doc(db, 'pharmacies', seller.uid);
+      const existing = await getDoc(pharmacyRef);
+      if (existing.exists()) {
+        logFlow('ENSURE_PHARMACY', {
+          expected: ['pharmacy doc for seller uid'],
+          received: { uid: seller.uid, exists: true },
+          success: true,
+        });
+        return;
+      }
+
+      const validation = validateRequiredFields(
+        { uid: seller.uid, email: seller.email, displayName: seller.displayName },
+        ['uid', 'email', 'displayName'],
+      );
+      if (!validation.ok) {
+        logFlow('ENSURE_PHARMACY', {
+          expected: ['uid', 'email', 'displayName'],
+          received: { missing: validation.missing },
+          success: false,
+        });
+        throw new Error(`Missing required fields: ${validation.missing.join(', ')}`);
+      }
+
+      await setDoc(
+        pharmacyRef,
+        cleanFirestoreData({
+          id: seller.uid,
+          ownerId: seller.uid,
+          sellerId: seller.uid,
+          name: `${seller.displayName}'s Pharmacy`,
+          description: '',
+          address: {},
+          contactNumber: seller.phoneNumber || '',
+          email: seller.email,
+          operatingHours: '09:00-21:00',
+          verificationStatus: 'pending',
+          status: 'pending',
+          deliveryAvailable: true,
+          pickupAvailable: true,
+          minOrderValue: 0,
+          deliveryFee: 0,
+          rating: 0,
+          reviewCount: 0,
+          image: '',
+          createdAt: serverTimestamp(),
         }),
+        { merge: true },
+      );
+
+      const verify = await getDoc(pharmacyRef);
+      logFlow('ENSURE_PHARMACY', {
+        expected: ['pharmacy doc exists after write'],
+        received: { uid: seller.uid, exists: verify.exists(), data: verify.exists() ? 'present' : null },
+        success: verify.exists(),
       });
+      if (!verify.exists()) {
+        throw new Error('Pharmacy write verification failed');
+      }
     } catch (error) {
-      console.warn('Backend user sync failed', error);
+      logFlow('ENSURE_PHARMACY', {
+        expected: ['pharmacy doc exists'],
+        received: { uid: seller.uid },
+        success: false,
+        error,
+      });
+      throw error;
     }
   };
 
@@ -106,15 +156,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt:
             data.createdAt?.toDate?.()?.toISOString?.() ||
             new Date().toISOString(),
-        });
-
-        await syncBackendUser({
-          uid,
-          email: data.email || fallbackUser?.email || '',
-          displayName: data.displayName || fallbackUser?.displayName || '',
-          role: data.role || 'customer',
-          phoneNumber: data.phoneNumber || '',
-          photoURL: data.photoURL || fallbackUser?.photoURL || null,
         });
 
         return;
@@ -143,8 +184,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
 
       setProfile(fallbackProfile);
-      await syncBackendUser(fallbackProfile);
     } catch (error) {
+      console.error('[ERROR][SYNC_USER_PROFILE]', error);
       // ✅ CRITICAL FIX: do NOT crash app
       console.warn('Profile sync failed → using fallback');
 
@@ -210,7 +251,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // ✅ SAFE CALL (won’t break if permission fails)
         await syncUserProfile(firebaseUser.uid, currentUser);
+        const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        const role = profileDoc.exists() ? profileDoc.data().role : 'customer';
+        if (role === 'seller') {
+          await ensureSellerPharmacy({
+            uid: firebaseUser.uid,
+            displayName: currentUser.displayName,
+            email: currentUser.email,
+          });
+        }
+        logFlow('AUTH_STATE_SYNC', {
+          expected: { authProject: firebaseConfig.projectId, userPresent: true },
+          received: { uid: firebaseUser.uid, role },
+          success: true,
+        });
       } catch (error) {
+        logFlow('AUTH_STATE_SYNC', {
+          expected: { userPresent: true },
+          received: { user: firebaseUser?.uid ?? null },
+          success: false,
+          error,
+        });
         logFirebaseError('Failed to sync auth state', error);
         setUser(null);
         setProfile(null);
@@ -263,6 +324,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { merge: true }
       );
 
+      if (newProfile.role === 'seller') {
+        await ensureSellerPharmacy(newProfile);
+      }
+      logFlow('AUTH_REGISTER', {
+        expected: { role: newProfile.role, uid: 'string' },
+        received: { uid: createdUser.uid, role: newProfile.role },
+        success: true,
+      });
+
       setUser({
         uid: createdUser.uid,
         email: createdUser.email || email,
@@ -271,8 +341,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       setProfile(newProfile);
-      await syncBackendUser(newProfile);
     } catch (error) {
+      logFlow('AUTH_REGISTER', {
+        expected: { email, password: 'provided' },
+        received: { email },
+        success: false,
+        error,
+      });
       logFirebaseError('Registration failed', error);
       throw error;
     } finally {
@@ -307,8 +382,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setUser(adminUser);
         setProfile(adminProfile);
-        await syncBackendUser(adminProfile);
-
         // 🔥 Prevent Firebase override
         localStorage.setItem('admin', 'true');
 
@@ -334,8 +407,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(currentUser);
       await syncUserProfile(firebaseUser.uid, currentUser);
+      const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      const role = profileDoc.exists() ? profileDoc.data().role : 'customer';
+      if (role === 'seller') {
+        await ensureSellerPharmacy({
+          uid: firebaseUser.uid,
+          displayName: currentUser.displayName,
+          email: currentUser.email,
+        });
+      }
+
+      const manualCheck = await getDoc(doc(db, 'pharmacies', firebaseUser.uid));
+      logFlow('AUTH_LOGIN', {
+        expected: { uid: firebaseUser.uid, pharmacyExists: role === 'seller' ? true : 'optional' },
+        received: { uid: firebaseUser.uid, role, pharmacyExists: manualCheck.exists() },
+        success: role !== 'seller' || manualCheck.exists(),
+      });
 
     } catch (error) {
+      logFlow('AUTH_LOGIN', {
+        expected: { email, password: 'provided' },
+        received: { email },
+        success: false,
+        error,
+      });
       logFirebaseError('Login failed', error);
       throw error;
     } finally {

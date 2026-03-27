@@ -31,8 +31,11 @@ export default function OrderHistory() {
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
-    return () => clearInterval(interval);
+    const unsubscribe = api.subscribeToOrders({ customerId: profile?.uid }, (liveOrders: any[]) => {
+      setOrders(liveOrders);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [profile]);
 
   const getStatusIcon = (status: string) => {
