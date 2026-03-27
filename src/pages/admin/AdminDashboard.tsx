@@ -33,6 +33,7 @@ import {
 } from 'recharts';
 import { api } from '../../services/api';
 import { Link } from 'react-router-dom';
+import { logError } from '../../utils/flowLogger';
 
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState({
@@ -46,6 +47,11 @@ const AdminDashboard: React.FC = () => {
     pendingPrescriptions: 0
   });
   const [loading, setLoading] = useState(true);
+  const [chartReady, setChartReady] = useState(false);
+
+  useEffect(() => {
+    setChartReady(true);
+  }, []);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -203,6 +209,15 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
           <div className="h-[300px]">
+            {!chartReady || salesData.length === 0 ? (
+              (() => {
+                logError('CHART', {
+                  type: 'UI',
+                  detail: !chartReady ? 'Revenue chart skipped: invalid dimensions' : 'Revenue chart skipped: no data',
+                });
+                return <div className="h-full flex items-center justify-center text-slate-500 text-sm">No chart data available.</div>;
+              })()
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={salesData}>
                 <defs>
@@ -220,30 +235,35 @@ const AdminDashboard: React.FC = () => {
                 <Area type="monotone" dataKey="revenue" stroke="#10b981" fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Medicine Categories</h3>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {!chartReady || categoryData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-slate-500 text-sm">No chart data available.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <div className="mt-4 space-y-2">
             {categoryData.map((item, index) => (

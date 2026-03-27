@@ -1,370 +1,309 @@
-import React, { useState } from 'react';
-import { 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Globe, 
-  Clock, 
-  FileText, 
-  CreditCard, 
-  ShieldCheck, 
-  Camera, 
-  Edit3, 
-  Save, 
-  X, 
-  CheckCircle2, 
-  AlertCircle,
-  ExternalLink,
-  Plus
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle2, Loader2, Save } from 'lucide-react';
+import { useAuth } from '../../AuthContext';
+import { api } from '../../services/api';
+
+type AddressForm = {
+  street: string;
+  area: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+type PharmacyForm = {
+  pharmacyName: string;
+  ownerName: string;
+  licenseNumber: string;
+  phone: string;
+  email: string;
+  gstNumber: string;
+  address: AddressForm;
+};
+
+const emptyForm: PharmacyForm = {
+  pharmacyName: '',
+  ownerName: '',
+  licenseNumber: '',
+  phone: '',
+  email: '',
+  gstNumber: '',
+  address: {
+    street: '',
+    area: '',
+    city: '',
+    state: '',
+    pincode: '',
+  },
+};
+
+const requiredKeys: Array<keyof PharmacyForm | `address.${keyof AddressForm}`> = [
+  'pharmacyName',
+  'ownerName',
+  'licenseNumber',
+  'phone',
+  'email',
+  'address.street',
+  'address.area',
+  'address.city',
+  'address.state',
+  'address.pincode',
+];
 
 const PharmacyProfile: React.FC = () => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'license' | 'bank' | 'settings'>('general');
+  const { profile } = useAuth();
+  const [form, setForm] = useState<PharmacyForm>(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const profileData = {
-    name: "MedSmart Pharmacy - Downtown",
-    owner: "Dr. Rajesh Kumar",
-    email: "contact@medsmartpharmacy.com",
-    phone: "+91 98765 43210",
-    address: "123, Medical Square, MG Road, Bangalore, Karnataka - 560001",
-    website: "www.medsmartpharmacy.com",
-    gstin: "24AAAAA0000A1Z5",
-    licenseNo: "DL-12345/2023",
-    established: "2015",
-    operatingHours: "09:00 AM - 11:00 PM",
-    rating: 4.8,
-    totalOrders: 1250,
-    status: "Verified",
-    bankDetails: {
-      accountName: "MedSmart Pharmacy Services",
-      accountNo: "**** **** 1234",
-      bankName: "State Bank of India",
-      ifsc: "SBIN0001234",
-      branch: "MG Road, Bangalore"
+  const validate = (): Record<string, string> => {
+    const next: Record<string, string> = {};
+    if (!form.pharmacyName.trim()) next.pharmacyName = 'Pharmacy name is required.';
+    if (!form.ownerName.trim()) next.ownerName = 'Owner name is required.';
+    if (!form.licenseNumber.trim()) next.licenseNumber = 'License number is required.';
+    if (!form.phone.trim()) next.phone = 'Phone is required.';
+    if (!form.email.trim()) next.email = 'Email is required.';
+    if (!form.address.street.trim()) next['address.street'] = 'Street is required.';
+    if (!form.address.area.trim()) next['address.area'] = 'Area is required.';
+    if (!form.address.city.trim()) next['address.city'] = 'City is required.';
+    if (!form.address.state.trim()) next['address.state'] = 'State is required.';
+    if (!form.address.pincode.trim()) next['address.pincode'] = 'Pincode is required.';
+    return next;
+  };
+
+  const loadPharmacy = async () => {
+    if (!profile?.uid) return;
+    setLoading(true);
+    setError('');
+    try {
+      const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
+      const existing = pharmacies[0];
+      if (!existing) {
+        setForm({
+          ...emptyForm,
+          ownerName: profile.displayName || '',
+          email: profile.email || '',
+        });
+        return;
+      }
+      setForm({
+        pharmacyName: existing.pharmacyName || existing.name || '',
+        ownerName: existing.ownerName || '',
+        licenseNumber: existing.licenseNumber || '',
+        phone: existing.phone || existing.contactNumber || '',
+        email: existing.email || profile.email || '',
+        gstNumber: existing.gstNumber || '',
+        address: {
+          street: existing.address?.street || '',
+          area: existing.address?.area || '',
+          city: existing.address?.city || '',
+          state: existing.address?.state || '',
+          pincode: existing.address?.pincode || '',
+        },
+      });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load pharmacy profile.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const tabs = [
-    { id: 'general', label: 'General Info', icon: Building2 },
-    { id: 'license', label: 'Compliance & Licenses', icon: ShieldCheck },
-    { id: 'bank', label: 'Bank & Payouts', icon: CreditCard },
-    { id: 'settings', label: 'Store Settings', icon: FileText },
-  ];
+  useEffect(() => {
+    loadPharmacy();
+  }, [profile?.uid]);
+
+  const updateField = (key: keyof PharmacyForm, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => ({ ...prev, [key]: '' }));
+  };
+
+  const updateAddressField = (key: keyof AddressForm, value: string) => {
+    setForm((prev) => ({ ...prev, address: { ...prev.address, [key]: value } }));
+    setFieldErrors((prev) => ({ ...prev, [`address.${key}`]: '' }));
+  };
+
+  const completeness = useMemo(() => {
+    return requiredKeys.every((entry) => {
+      if (entry.startsWith('address.')) {
+        const key = entry.replace('address.', '') as keyof AddressForm;
+        return form.address[key].trim().length > 0;
+      }
+      return String(form[entry as keyof PharmacyForm] || '').trim().length > 0;
+    });
+  }, [form]);
+
+  const onSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile?.uid) return;
+
+    setSuccess('');
+    setError('');
+
+    const nextErrors = validate();
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError('Please complete all required fields before saving.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.createPharmacy({
+        id: profile.uid,
+        ownerId: profile.uid,
+        sellerId: profile.uid,
+        name: form.pharmacyName,
+        pharmacyName: form.pharmacyName,
+        ownerName: form.ownerName,
+        licenseNumber: form.licenseNumber,
+        address: form.address,
+        phone: form.phone,
+        contactNumber: form.phone,
+        email: form.email,
+        gstNumber: form.gstNumber,
+        status: 'pending',
+        verificationStatus: 'pending',
+      });
+
+      const verifyRows = await api.getPharmacies({ ownerId: profile.uid });
+      const verified = verifyRows[0] || {};
+      const actual = {
+        pharmacyName: verified.pharmacyName || verified.name,
+        ownerName: verified.ownerName,
+        licenseNumber: verified.licenseNumber,
+        address: verified.address,
+        phone: verified.phone || verified.contactNumber,
+        email: verified.email,
+        gstNumber: verified.gstNumber,
+      };
+
+      console.group('[PROFILE_SAVE][VERIFY]');
+      console.log('EXPECTED_FIELDS:', requiredKeys);
+      console.log('ACTUAL_FIELDS:', actual);
+      console.groupEnd();
+
+      setSuccess('Profile saved successfully.');
+      await loadPharmacy();
+    } catch (err: any) {
+      console.group('[PROFILE_SAVE][FAIL]');
+      console.error('DETAIL:', err);
+      console.groupEnd();
+      setError(err?.message || 'Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Header / Banner */}
-      <div className="relative h-48 bg-gradient-to-r from-emerald-600 to-blue-600 rounded-3xl overflow-hidden shadow-lg shadow-emerald-100">
-        <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
-        <div className="absolute -bottom-16 left-8 flex items-end gap-6">
-          <div className="relative group">
-            <div className="w-32 h-32 bg-white rounded-3xl border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
-              <Building2 className="w-16 h-16 text-emerald-600" />
-            </div>
-            <button className="absolute bottom-2 right-2 p-2 bg-slate-900 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-              <Camera className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="mb-4 pb-2">
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold text-white drop-shadow-sm">{profileData.name}</h1>
-              <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white text-[10px] font-bold rounded-full border border-white/30 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
-                {profileData.status}
-              </span>
-            </div>
-            <div className="flex items-center gap-4 text-white/80 text-sm">
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4" />
-                {profileData.address.split(',')[2]}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                {profileData.totalOrders}+ Orders
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="absolute bottom-4 right-8 flex gap-3">
-          <button 
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-2 px-6 py-2.5 bg-white text-slate-900 rounded-2xl text-sm font-bold shadow-lg hover:bg-slate-50 transition-all"
-          >
-            {isEditing ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-            {isEditing ? 'Cancel' : 'Edit Profile'}
-          </button>
-          {isEditing && (
-            <button className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-2xl text-sm font-bold shadow-lg hover:bg-emerald-700 transition-all">
-              <Save className="w-4 h-4" />
-              Save Changes
-            </button>
-          )}
-        </div>
+    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Store Profile</h1>
+        <p className="text-slate-500">Complete your pharmacy profile to unlock seller operations.</p>
       </div>
 
-      <div className="mt-20 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sidebar Tabs */}
-        <div className="lg:col-span-1 space-y-2">
-          {tabs.map(tab => (
+      {error && (
+        <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 mt-0.5" />
+          <span>{success}</span>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="bg-white p-10 rounded-2xl border border-slate-200 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        </div>
+      ) : (
+        <form onSubmit={onSave} className="bg-white p-6 rounded-2xl border border-slate-200 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Pharmacy Name *</label>
+              <input value={form.pharmacyName} onChange={(e) => updateField('pharmacyName', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+              {fieldErrors.pharmacyName && <p className="text-xs text-red-600 mt-1">{fieldErrors.pharmacyName}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Owner Name *</label>
+              <input value={form.ownerName} onChange={(e) => updateField('ownerName', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+              {fieldErrors.ownerName && <p className="text-xs text-red-600 mt-1">{fieldErrors.ownerName}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">License Number *</label>
+              <input value={form.licenseNumber} onChange={(e) => updateField('licenseNumber', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+              {fieldErrors.licenseNumber && <p className="text-xs text-red-600 mt-1">{fieldErrors.licenseNumber}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone *</label>
+              <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+              {fieldErrors.phone && <p className="text-xs text-red-600 mt-1">{fieldErrors.phone}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
+              <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+              {fieldErrors.email && <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">GST Number (optional)</label>
+              <input value={form.gstNumber} onChange={(e) => updateField('gstNumber', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 mb-3">Address</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Street *</label>
+                <input value={form.address.street} onChange={(e) => updateAddressField('street', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+                {fieldErrors['address.street'] && <p className="text-xs text-red-600 mt-1">{fieldErrors['address.street']}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Area *</label>
+                <input value={form.address.area} onChange={(e) => updateAddressField('area', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+                {fieldErrors['address.area'] && <p className="text-xs text-red-600 mt-1">{fieldErrors['address.area']}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">City *</label>
+                <input value={form.address.city} onChange={(e) => updateAddressField('city', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+                {fieldErrors['address.city'] && <p className="text-xs text-red-600 mt-1">{fieldErrors['address.city']}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">State *</label>
+                <input value={form.address.state} onChange={(e) => updateAddressField('state', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+                {fieldErrors['address.state'] && <p className="text-xs text-red-600 mt-1">{fieldErrors['address.state']}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Pincode *</label>
+                <input value={form.address.pincode} onChange={(e) => updateAddressField('pincode', e.target.value)} className="w-full px-3 py-2 border rounded-xl" />
+                {fieldErrors['address.pincode'] && <p className="text-xs text-red-600 mt-1">{fieldErrors['address.pincode']}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-4">
+            <p className={`text-sm ${completeness ? 'text-emerald-700' : 'text-amber-700'}`}>
+              {completeness ? 'Profile is complete.' : 'Complete all required fields to continue.'}
+            </p>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' : 'text-slate-500 hover:bg-slate-100'}`}
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-60"
             >
-              <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-emerald-400' : 'text-slate-400'}`} />
-              {tab.label}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'Saving...' : 'Save Profile'}
             </button>
-          ))}
-        </div>
-
-        {/* Content Area */}
-        <div className="lg:col-span-3 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm min-h-[500px]">
-          <AnimatePresence mode="wait">
-            {activeTab === 'general' && (
-              <motion.div
-                key="general"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-8"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4">Basic Information</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Pharmacy Name</label>
-                        {isEditing ? (
-                          <input type="text" defaultValue={profileData.name} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
-                        ) : (
-                          <p className="text-sm font-bold text-slate-900">{profileData.name}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Owner Name</label>
-                        {isEditing ? (
-                          <input type="text" defaultValue={profileData.owner} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none" />
-                        ) : (
-                          <p className="text-sm font-bold text-slate-900">{profileData.owner}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Established Year</label>
-                        <p className="text-sm font-bold text-slate-900">{profileData.established}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4">Contact Details</h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Email Address</p>
-                          <p className="text-sm font-bold text-slate-900">{profileData.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-                          <Phone className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Phone Number</p>
-                          <p className="text-sm font-bold text-slate-900">{profileData.phone}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                          <Globe className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Website</p>
-                          <p className="text-sm font-bold text-slate-900">{profileData.website}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4">Store Location</h3>
-                  <div className="flex items-start gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="p-3 bg-white rounded-xl shadow-sm">
-                      <MapPin className="w-6 h-6 text-rose-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-900 mb-1">{profileData.address}</p>
-                      <button className="text-xs font-bold text-emerald-600 flex items-center gap-1 hover:underline">
-                        View on Google Maps
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4">Operating Hours</h3>
-                  <div className="flex items-center gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="p-3 bg-white rounded-xl shadow-sm">
-                      <Clock className="w-6 h-6 text-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 mb-1">{profileData.operatingHours}</p>
-                      <p className="text-xs text-slate-500">Open Monday to Sunday</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'license' && (
-              <motion.div
-                key="license"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-8"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-slate-900">Regulatory Documents</h3>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all">
-                    <Plus className="w-4 h-4" />
-                    Upload New
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-white border border-slate-200 rounded-2xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                        <ShieldCheck className="w-6 h-6" />
-                      </div>
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">Verified</span>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">Drug License (Form 20/21)</h4>
-                      <p className="text-xs text-slate-500 mt-1">License No: {profileData.licenseNo}</p>
-                    </div>
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Expires: 31 Dec 2025</span>
-                      <button className="text-xs font-bold text-emerald-600 hover:underline">View Doc</button>
-                    </div>
-                  </div>
-
-                  <div className="p-6 bg-white border border-slate-200 rounded-2xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                        <FileText className="w-6 h-6" />
-                      </div>
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">Verified</span>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">GST Registration</h4>
-                      <p className="text-xs text-slate-500 mt-1">GSTIN: {profileData.gstin}</p>
-                    </div>
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Status: Active</span>
-                      <button className="text-xs font-bold text-emerald-600 hover:underline">View Doc</button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 flex gap-4">
-                  <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
-                  <div>
-                    <h4 className="text-sm font-bold text-amber-900">License Renewal Alert</h4>
-                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                      Your Drug License is expiring in 9 months. Please ensure you start the renewal process at least 3 months in advance to avoid platform suspension.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'bank' && (
-              <motion.div
-                key="bank"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-8"
-              >
-                <h3 className="text-lg font-bold text-slate-900">Settlement Bank Account</h3>
-                <div className="p-8 bg-slate-900 rounded-3xl text-white relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform">
-                    <CreditCard className="w-48 h-48" />
-                  </div>
-                  <div className="relative z-10 space-y-8">
-                    <div className="flex items-center justify-between">
-                      <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center p-2">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/c/cc/SBI-logo.svg" alt="SBI" className="w-full h-full object-contain" />
-                      </div>
-                      <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/30">
-                        Primary Account
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Account Number</p>
-                      <h4 className="text-2xl font-bold tracking-widest">{profileData.bankDetails.accountNo}</h4>
-                    </div>
-                    <div className="grid grid-cols-2 gap-8">
-                      <div>
-                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Account Holder</p>
-                        <p className="text-sm font-bold">{profileData.bankDetails.accountName}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">IFSC Code</p>
-                        <p className="text-sm font-bold">{profileData.bankDetails.ifsc}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Payout Schedule</h4>
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white rounded-xl shadow-sm">
-                        <Clock className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">Weekly Settlements</p>
-                        <p className="text-xs text-slate-500">Every Monday</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Minimum Payout</h4>
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white rounded-xl shadow-sm">
-                        <DollarSign className="w-6 h-6 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">₹1,000.00</p>
-                        <p className="text-xs text-slate-500">Threshold for auto-transfer</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+          </div>
+        </form>
+      )}
     </div>
   );
 };
-
-const DollarSign = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
 
 export default PharmacyProfile;

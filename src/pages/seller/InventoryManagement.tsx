@@ -11,8 +11,9 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../AuthContext';
-import { SellerMedicine } from '../../types';
-import AddMedicineModal, { AddMedicineValues } from '../../components/medicine/AddMedicineModal';
+import { MedicineMaster, SellerMedicine } from '../../types';
+import { logFlow } from '../../utils/flowLogger';
+import { logUI } from '../../utils/uiLogger';
 
 const InventoryManagement: React.FC = () => {
   const { profile } = useAuth();
@@ -22,13 +23,17 @@ const InventoryManagement: React.FC = () => {
   const [pharmacyId, setPharmacyId] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [masters, setMasters] = useState<MedicineMaster[]>([]);
+  const [selectedMasterId, setSelectedMasterId] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [newStock, setNewStock] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchInventory = async () => {
     if (!profile) return;
     try {
       setLoading(true);
-      const pharmacies = await api.getPharmacies({ sellerId: profile.uid });
+      const pharmacies = await api.getPharmacies({ ownerId: profile.uid });
       if (pharmacies.length === 0) {
         setErrorMessage('No pharmacy found for this seller account.');
         setMedicines([]);
@@ -39,19 +44,47 @@ const InventoryManagement: React.FC = () => {
       setPharmacyId(pId);
 
       const inventory = await api.getInventory({ pharmacyId: pId });
+      const medicineMasterData = await api.getMedicines({ includeAll: 'true' });
+      setMasters(medicineMasterData as MedicineMaster[]);
 
       const enriched = await Promise.all(inventory.map(async (item: any) => {
+        if (!item.medicineMasterId) {
+          logFlow('INVENTORY_JOIN', {
+            expected: ['medicineMasterId'],
+            received: { itemId: item.id, medicineMasterId: item.medicineMasterId },
+            success: false,
+          });
+        }
         const masterData = item.medicineMasterId
           ? await api.getMedicines({ id: item.medicineMasterId, includeAll: 'true' })
           : [];
+        const resolvedMasterData = Array.isArray(masterData) ? masterData[0] : masterData;
+        if (!resolvedMasterData) {
+          logFlow('INVENTORY_JOIN', {
+            expected: ['master data by medicineMasterId'],
+            received: { itemId: item.id, medicineMasterId: item.medicineMasterId },
+            success: false,
+          });
+        }
         return {
           ...item,
-          masterData: Array.isArray(masterData) ? masterData[0] : masterData
+          masterData: resolvedMasterData
         };
       }));
 
       setMedicines(enriched);
+      logFlow('INVENTORY_FETCH', {
+        expected: ['pharmacy', 'inventory', 'medicine master'],
+        received: { inventoryCount: enriched.length },
+        success: true,
+      });
     } catch (err: any) {
+      logFlow('INVENTORY_FETCH', {
+        expected: ['pharmacy', 'inventory', 'medicine master'],
+        received: null,
+        success: false,
+        error: err,
+      });
       setErrorMessage(err?.message || 'Error fetching inventory');
     } finally {
       setLoading(false);
@@ -62,16 +95,41 @@ const InventoryManagement: React.FC = () => {
     fetchInventory();
   }, [profile]);
 
-  const handleAddMedicineRequest = async (values: AddMedicineValues) => {
+  const handleCreateInventory = async () => {
     if (!profile?.uid) throw new Error('Seller profile not found');
     if (!pharmacyId) throw new Error('No pharmacy found');
-    await api.createMedicine({
-      ...values,
+    if (!selectedMasterId) {
+      logFlow('CREATE_INVENTORY_FORM', {
+        expected: ['medicineMasterId'],
+        received: { medicineMasterId: selectedMasterId },
+        success: false,
+      });
+      throw new Error('Please select a medicine from medicine master.');
+    }
+    const price = Number(newPrice);
+    const stock = Number(newStock);
+    if (!Number.isFinite(price) || !Number.isFinite(stock) || price <= 0 || stock < 0) {
+      logFlow('CREATE_INVENTORY_FORM', {
+        expected: ['price > 0', 'stock >= 0'],
+        received: { price, stock },
+        success: false,
+      });
+      throw new Error('Price must be > 0 and stock must be >= 0.');
+    }
+    await api.createInventoryEntry({
       pharmacyId,
       sellerId: profile.uid,
-      status: 'pending',
+      medicineMasterId: selectedMasterId,
+      price,
+      stock,
+      isVisible: true,
+      isFeatured: false,
     });
     setSuccessMessage('Medicine submitted for admin approval.');
+    logUI('CREATE_INVENTORY', { context: `Inventory created for ${selectedMasterId}`, success: true });
+    setSelectedMasterId('');
+    setNewPrice('');
+    setNewStock('');
     await fetchInventory();
   };
 
@@ -79,20 +137,24 @@ const InventoryManagement: React.FC = () => {
     const stock = Number(window.prompt('Update stock', String(item.stock)) || item.stock);
     const price = Number(window.prompt('Update price', String(item.price)) || item.price);
     try {
+      logUI('EDIT_INVENTORY', { context: `Inventory ${item.id}`, success: true });
       await api.updateInventory(item.id, { stock, price });
       await fetchInventory();
     } catch (error) {
       setErrorMessage('Failed to update inventory item');
+      logUI('EDIT_INVENTORY', { context: `Inventory ${item.id}`, success: false, reason: (error as Error)?.message || 'update failed' });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this inventory item?')) return;
     try {
+      logUI('DELETE_INVENTORY', { context: `Inventory ${id}`, success: true });
       await api.deleteInventory(id);
       await fetchInventory();
     } catch (error) {
       setErrorMessage('Failed to delete inventory item');
+      logUI('DELETE_INVENTORY', { context: `Inventory ${id}`, success: false, reason: (error as Error)?.message || 'delete failed' });
     }
   };
 
@@ -109,17 +171,74 @@ const InventoryManagement: React.FC = () => {
           <h1 className="text-2xl font-bold text-slate-900">Inventory Management</h1>
           <p className="text-slate-500 text-sm">Manage your medicine stock and pricing</p>
         </div>
-        <button
-          onClick={() => { setSuccessMessage(''); setShowAddModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
-        >
-          <Plus className="w-4 h-4" />
-          Add Medicine
-        </button>
+        <span className="text-xs text-slate-500">Create inventory from medicine master only.</span>
       </div>
 
       {errorMessage && <div className="p-3 rounded-xl bg-amber-50 text-amber-700 text-sm font-medium">{errorMessage}</div>}
       {successMessage && <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium">{successMessage}</div>}
+
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <h3 className="font-bold text-slate-900 flex items-center gap-2"><Plus className="w-4 h-4" />Add Inventory Item</h3>
+        {masters.length === 0 ? (
+          <p className="text-sm text-amber-700">Medicine catalog is empty. Contact admin.</p>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (submitting) return;
+              setSubmitting(true);
+              setErrorMessage('');
+              try {
+                await handleCreateInventory();
+              } catch (error: any) {
+                setErrorMessage(error?.message || 'Failed to create inventory');
+                logUI('CREATE_INVENTORY', { context: 'Inventory submit', success: false, reason: error?.message || 'submit failed' });
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            className="space-y-3"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <select
+                value={selectedMasterId}
+                onChange={(e) => {
+                  setSelectedMasterId(e.target.value);
+                }}
+                className="px-3 py-2 rounded-xl border border-slate-200 md:col-span-2"
+              >
+                <option value="">Select medicine</option>
+                {masters.map((master) => (
+                  <option key={master.id} value={master.id}>
+                    {master.brandName} ({master.genericName})
+                  </option>
+                ))}
+              </select>
+              <input value={newPrice} onChange={(e) => setNewPrice(e.target.value)} type="number" placeholder="Price" className="px-3 py-2 rounded-xl border border-slate-200" />
+              <input value={newStock} onChange={(e) => setNewStock(e.target.value)} type="number" placeholder="Stock" className="px-3 py-2 rounded-xl border border-slate-200" />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-60"
+              disabled={submitting || !selectedMasterId || masters.length === 0}
+            >
+              {submitting ? 'Saving…' : 'Save Inventory'}
+            </button>
+          </form>
+        )}
+        {!selectedMasterId && masters.length > 0 && (
+          <p className="text-xs text-red-600">Please select a medicine to create inventory.</p>
+        )}
+        {selectedMasterId && (
+          <div className="text-xs text-slate-600">
+            {(() => {
+              const selected = masters.find((master) => master.id === selectedMasterId);
+              if (!selected) return null;
+              return <span>Category: {selected.category} • Manufacturer: {selected.manufacturer} • Schedule: {selected.schedule}</span>;
+            })()}
+          </div>
+        )}
+      </div>
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
@@ -189,13 +308,6 @@ const InventoryManagement: React.FC = () => {
           </table>
         </div>
       </div>
-
-      <AddMedicineModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSubmit={handleAddMedicineRequest}
-        role="seller"
-      />
     </div>
   );
 };
